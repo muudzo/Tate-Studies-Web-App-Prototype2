@@ -1,18 +1,24 @@
 import { projectId, publicAnonKey } from './supabase/info'
+import { ENV } from '../config/environment'
 
-const API_BASE_URL = `https://${projectId}.supabase.co/functions/v1/make-server-4e8803b0`
+const API_BASE_URL = ENV.API_BASE_URL
 
-// Generic API call function
+// Generic API call function with enhanced debugging
 async function apiCall(endpoint: string, options: RequestInit = {}) {
   const url = `${API_BASE_URL}${endpoint}`
   
   const defaultOptions: RequestInit = {
     headers: {
-      'Authorization': `Bearer ${publicAnonKey}`,
+      'Authorization': `Bearer ${ENV.SUPABASE_ANON_KEY}`,
       'Content-Type': 'application/json',
       ...options.headers,
     },
     ...options,
+  }
+
+  // Debug logging
+  if (ENV.ENABLE_DEBUG) {
+    console.log(`[API] ${options.method || 'GET'} ${endpoint}`, options.body ? JSON.parse(options.body as string) : '');
   }
 
   try {
@@ -24,6 +30,10 @@ async function apiCall(endpoint: string, options: RequestInit = {}) {
       throw new Error(data.error || `HTTP ${response.status}`)
     }
     
+    if (ENV.ENABLE_DEBUG) {
+      console.log(`[API] Response:`, data);
+    }
+    
     return data
   } catch (error) {
     console.error(`API call failed for ${endpoint}:`, error)
@@ -31,16 +41,20 @@ async function apiCall(endpoint: string, options: RequestInit = {}) {
   }
 }
 
-// File upload
-export async function uploadFile(file: File, userId: string = 'default') {
+// File upload with enhanced debugging
+export async function uploadFile(file: File, userId: string = ENV.DEFAULT_USER_ID) {
   const formData = new FormData()
   formData.append('file', file)
   formData.append('userId', userId)
 
+  if (ENV.ENABLE_DEBUG) {
+    console.log(`[API] Uploading file: ${file.name} (${file.size} bytes) for user: ${userId}`);
+  }
+
   const response = await fetch(`${API_BASE_URL}/upload`, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${publicAnonKey}`,
+      'Authorization': `Bearer ${ENV.SUPABASE_ANON_KEY}`,
     },
     body: formData,
   })
@@ -50,6 +64,10 @@ export async function uploadFile(file: File, userId: string = 'default') {
   if (!response.ok) {
     console.error('Upload error:', data)
     throw new Error(data.error || 'Upload failed')
+  }
+  
+  if (ENV.ENABLE_DEBUG) {
+    console.log('[API] Upload response:', data);
   }
   
   return data
@@ -147,6 +165,40 @@ export async function getUserProgress(userId: string = 'default') {
 // Health check
 export async function healthCheck() {
   return apiCall('/health')
+}
+
+// Complete file processing (upload + process)
+export async function processFile(file: File, subject: string, userId: string = ENV.DEFAULT_USER_ID) {
+  try {
+    if (ENV.ENABLE_DEBUG) {
+      console.log(`[API] Starting file processing: ${file.name} for subject: ${subject}`);
+    }
+
+    // Step 1: Upload file
+    const uploadResult = await uploadFile(file, userId);
+    
+    if (!uploadResult.success) {
+      throw new Error('File upload failed');
+    }
+
+    // Step 2: Extract text content
+    const text = await extractTextFromFile(file);
+
+    // Step 3: Process with AI
+    const processResult = await processContent(text, subject, uploadResult.fileId);
+    
+    if (ENV.ENABLE_DEBUG) {
+      console.log('[API] File processing completed successfully');
+    }
+    
+    return {
+      ...processResult,
+      fileId: uploadResult.fileId
+    };
+  } catch (error) {
+    console.error('Process file error:', error);
+    throw error;
+  }
 }
 
 // Text extraction helpers for different file types
