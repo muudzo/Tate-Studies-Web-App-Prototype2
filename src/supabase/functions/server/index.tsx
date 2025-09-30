@@ -10,7 +10,7 @@ const app = new Hono()
 // Enable CORS and logging
 app.use('*', cors({
   origin: '*',
-  allowHeaders: ['*'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   allowMethods: ['POST', 'GET', 'OPTIONS', 'PUT', 'DELETE'],
 }))
 
@@ -102,175 +102,55 @@ app.post('/make-server-4e8803b0/process', async (c) => {
     const { fileId, text, subject } = await c.req.json()
     const openaiKey = Deno.env.get('OPENAI_API_KEY')
     
-    if (!openaiKey) {
-      console.log('Using free local processing - no API costs!')
-      
-      // Enhanced free processing with smart text analysis
-      const words = text.toLowerCase().split(/\s+/);
-      const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 10);
-      
-      // Extract key terms using frequency analysis
-      const wordFreq = {};
-      words.forEach(word => {
-        if (word.length > 4) { // Only meaningful words
-          wordFreq[word] = (wordFreq[word] || 0) + 1;
-        }
-      });
-      
-      const keyTerms = Object.entries(wordFreq)
-        .sort(([,a], [,b]) => b - a)
-        .slice(0, 5)
-        .map(([term, freq]) => ({ term, description: `Important concept mentioned ${freq} times` }));
-      
-      // Smart content analysis
-      const keyNames = keyTerms.slice(0, 3).map(({term}) => ({
-        term: term.charAt(0).toUpperCase() + term.slice(1),
-        description: `Key concept from your notes`
-      }));
-      
-      const keyDefinitions = sentences.slice(0, 3).map((sentence, i) => ({
-        term: `Definition ${i + 1}`,
-        description: sentence.trim()
-      }));
-      
-      const importantPoints = sentences.slice(3, 6).map((sentence, i) => ({
-        term: `Key Point ${i + 1}`,
-        description: sentence.trim()
-      }));
-      
-      const studyTips = [
-        { term: "Review Strategy", description: "Read through your notes and identify the main themes" },
-        { term: "Practice Recall", description: "Try to explain the concepts without looking at your notes" },
-        { term: "Connect Ideas", description: "Look for relationships between different concepts in your material" }
-      ];
-      
-      const fallbackContent = {
-        keyNames,
-        keyDefinitions,
-        importantPoints,
-        studyTips
+    // Always use free processing for now (no OpenAI dependency)
+    console.log('Using free local processing - no API costs!')
+    
+    // Enhanced free processing with smart text analysis
+    const words = text.toLowerCase().split(/\s+/);
+    const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 10);
+    
+    // Extract key terms using frequency analysis
+    const wordFreq = {};
+    words.forEach(word => {
+      if (word.length > 4) { // Only meaningful words
+        wordFreq[word] = (wordFreq[word] || 0) + 1;
       }
-      
-      // Store summary in database
-      const summaryId = `summary_${Date.now()}`
-      const summaryData = {
-        id: summaryId,
-        fileId,
-        subject: subject || 'General Studies',
-        processedAt: new Date().toISOString(),
-        ...fallbackContent
-      }
-      
-      await kv.set(summaryId, summaryData)
-      
-      return c.json({
-        success: true,
-        summaryId,
-        summary: fallbackContent,
-        note: 'Processed with free local analysis - no API costs!'
-      })
+    });
+    
+    const keyTerms = Object.entries(wordFreq)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 5)
+      .map(([term, freq]) => ({ term, description: `Important concept mentioned ${freq} times` }));
+    
+    // Smart content analysis
+    const keyNames = keyTerms.slice(0, 3).map(({term}) => ({
+      term: term.charAt(0).toUpperCase() + term.slice(1),
+      description: `Key concept from your notes`
+    }));
+    
+    const keyDefinitions = sentences.slice(0, 3).map((sentence, i) => ({
+      term: `Definition ${i + 1}`,
+      description: sentence.trim()
+    }));
+    
+    const importantPoints = sentences.slice(3, 6).map((sentence, i) => ({
+      term: `Key Point ${i + 1}`,
+      description: sentence.trim()
+    }));
+    
+    const studyTips = [
+      { term: "Review Strategy", description: "Read through your notes and identify the main themes" },
+      { term: "Practice Recall", description: "Try to explain the concepts without looking at your notes" },
+      { term: "Connect Ideas", description: "Look for relationships between different concepts in your material" }
+    ];
+    
+    const fallbackContent = {
+      keyNames,
+      keyDefinitions,
+      importantPoints,
+      studyTips
     }
-
-    if (!text) {
-      return c.json({ error: 'No text content provided' }, 400)
-    }
-
-    // Create AI prompt based on subject
-    const getPrompt = (subject: string, content: string) => {
-      const basePrompt = `You are an expert study assistant for ${subject}. Extract and summarize the following notes:
-
-Content: ${content}
-
-Please provide:
-1. Key Names/People: List important figures, leaders, theorists, or companies mentioned
-2. Key Definitions: Define important terms and concepts
-3. Important Points: Summarize the main ideas and takeaways
-4. Study Tips: Provide 2-3 practical study suggestions for this content
-
-Format your response as JSON with these exact keys: keyNames, keyDefinitions, importantPoints, studyTips. Each should be an array of objects with 'term' and 'description' properties.`
-
-      return basePrompt
-    }
-
-    // Call OpenAI API
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'user',
-            content: getPrompt(subject || 'General Studies', text)
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 2000
-      })
-    })
-
-    if (!response.ok) {
-      const errorData = await response.text()
-      console.log('OpenAI API error:', errorData)
-      return c.json({ error: 'Failed to process content with AI' }, 500)
-    }
-
-    const aiResponse = await response.json()
-    const content = aiResponse.choices[0]?.message?.content
-
-    if (!content) {
-      return c.json({ error: 'No content returned from AI' }, 500)
-    }
-
-    // Parse AI response
-    let parsedContent
-    try {
-      // Clean the content before parsing
-      const cleanedContent = content.trim()
-      parsedContent = JSON.parse(cleanedContent)
-      
-      // Validate the structure
-      if (!parsedContent.keyNames || !parsedContent.keyDefinitions || 
-          !parsedContent.importantPoints || !parsedContent.studyTips) {
-        throw new Error('Invalid AI response structure')
-      }
-    } catch (parseError) {
-      console.log('Failed to parse AI response as JSON:', content)
-      console.log('Parse error:', parseError)
-      
-      // Enhanced fallback: try to extract information from the text
-      const lines = content.split('\n').filter(line => line.trim())
-      const keyNames = []
-      const keyDefinitions = []
-      const importantPoints = []
-      const studyTips = []
-      
-      // Try to extract structured information
-      lines.forEach(line => {
-        if (line.toLowerCase().includes('definition') || line.includes(':')) {
-          const parts = line.split(':')
-          if (parts.length === 2) {
-            keyDefinitions.push({ term: parts[0].trim(), description: parts[1].trim() })
-          }
-        } else if (line.toLowerCase().includes('tip') || line.toLowerCase().includes('suggestion')) {
-          studyTips.push({ term: "Study Tip", description: line.trim() })
-        } else if (line.length > 20) {
-          importantPoints.push({ term: "Key Point", description: line.trim() })
-        }
-      })
-      
-      // Fallback: create structured response from text
-      parsedContent = {
-        keyNames: keyNames.length > 0 ? keyNames : [{ term: "AI Processing", description: "Content processed successfully but needs manual review" }],
-        keyDefinitions: keyDefinitions.length > 0 ? keyDefinitions : [{ term: "Summary", description: content.substring(0, 500) + "..." }],
-        importantPoints: importantPoints.length > 0 ? importantPoints : [{ term: "Main Content", description: "Please review the processed content manually" }],
-        studyTips: studyTips.length > 0 ? studyTips : [{ term: "Review", description: "Go through the content and create your own summary" }]
-      }
-    }
-
+    
     // Store summary in database
     const summaryId = `summary_${Date.now()}`
     const summaryData = {
@@ -278,15 +158,16 @@ Format your response as JSON with these exact keys: keyNames, keyDefinitions, im
       fileId,
       subject: subject || 'General Studies',
       processedAt: new Date().toISOString(),
-      ...parsedContent
+      ...fallbackContent
     }
-
+    
     await kv.set(summaryId, summaryData)
-
+    
     return c.json({
       success: true,
       summaryId,
-      summary: parsedContent
+      summary: fallbackContent,
+      note: 'Processed with free local analysis - no API costs!'
     })
 
   } catch (error) {
@@ -521,9 +402,8 @@ app.post('/make-server-4e8803b0/multiple-choice', async (c) => {
       return c.json({ error: 'Summary not found' }, 404)
     }
 
-    const openaiKey = Deno.env.get('OPENAI_API_KEY')
-    if (!openaiKey) {
-      console.log('Using free question generation - no API costs!')
+    // Always use free question generation (no OpenAI dependency)
+    console.log('Using free question generation - no API costs!')
       
       // Enhanced free question generation based on content
       const content = summary.keyDefinitions || [];
