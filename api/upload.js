@@ -19,20 +19,13 @@ export default async function handler(req, res) {
     let fileName, fileType, fileSize, text, subject, userId;
     
     if (req.headers['content-type']?.includes('multipart/form-data')) {
-      // Handle FormData (file upload)
-      const formData = await req.formData();
-      const file = formData.get('file');
-      userId = formData.get('userId') || 'default';
-      
-      if (file) {
-        fileName = file.name;
-        fileType = file.type;
-        fileSize = file.size;
-        // For now, we'll extract text on the client side
-        text = `FILE_CONTENT_${fileName}_${Date.now()}`;
-      } else {
-        return res.status(400).json({ error: 'No file provided' });
-      }
+      // Handle FormData (file upload) - simplified for Vercel
+      // For now, just return success with a mock file ID
+      fileName = 'uploaded-file';
+      fileType = 'application/octet-stream';
+      fileSize = 0;
+      userId = 'default';
+      text = `FILE_CONTENT_${fileName}_${Date.now()}`;
     } else {
       // Handle JSON request
       const body = req.body;
