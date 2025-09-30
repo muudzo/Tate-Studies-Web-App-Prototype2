@@ -38,9 +38,6 @@ export async function uploadFile(file: File, userId: string = 'default') {
 
   const response = await fetch(`${API_BASE_URL}/upload`, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${publicAnonKey}`,
-    },
     body: formData,
   })
 
