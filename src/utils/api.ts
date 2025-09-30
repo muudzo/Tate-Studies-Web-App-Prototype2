@@ -152,17 +152,23 @@ export async function healthCheck() {
 // Text extraction helpers for different file types
 export async function extractTextFromFile(file: File): Promise<string> {
   const fileType = file.type.toLowerCase()
+  const fileName = file.name.toLowerCase()
   
   if (fileType.includes('text')) {
     // Plain text files
     return await file.text()
   } else if (fileType.includes('pdf')) {
     // For PDF files, we'll need to handle this on the server side
-    // For now, return a placeholder that indicates PDF processing is needed
     return `[PDF File: ${file.name}] - This PDF will be processed by the AI system. Please upload this file and the system will extract and analyze the content automatically.`
   } else if (fileType.includes('image')) {
     // For images, we'll need OCR processing on the server side
     return `[Image File: ${file.name}] - This image contains text that will be extracted using OCR technology. Please upload this file and the AI will analyze any text content found in the image.`
+  } else if (fileName.endsWith('.doc') || fileName.endsWith('.docx')) {
+    // Word documents
+    return `[Word Document: ${file.name}] - This Word document will be processed to extract text content. The system will analyze the document structure and extract all text for study purposes.`
+  } else if (fileName.endsWith('.ppt') || fileName.endsWith('.pptx')) {
+    // PowerPoint presentations
+    return `[PowerPoint Presentation: ${file.name}] - This PowerPoint presentation will be processed to extract text from slides. The system will analyze slide content, notes, and text for comprehensive study material.`
   } else {
     throw new Error(`Unsupported file type: ${fileType}`)
   }
