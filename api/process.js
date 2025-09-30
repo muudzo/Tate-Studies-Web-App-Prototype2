@@ -27,35 +27,37 @@ export default async function handler(req, res) {
     
     console.log('Using free local processing - no API costs!');
     
-    // Check if this is a special content identifier (for files that need server-side processing)
-    if (text.startsWith('PDF_CONTENT_') || text.startsWith('IMAGE_CONTENT_') || 
-        text.startsWith('WORD_CONTENT_') || text.startsWith('PPT_CONTENT_')) {
-      console.log('Detected file content identifier, using fallback processing');
+    // Check if this is a document with file information
+    if (text.includes('PDF Document:') || text.includes('Word Document:') || text.includes('PowerPoint Presentation:')) {
+      console.log('Detected document file, creating study-focused summary');
       
-      // For now, create a basic summary based on the file type
-      const fileType = text.split('_')[0];
-      const fileName = text.split('_')[2] || 'document';
+      // Extract file name and type from the content
+      const lines = text.split('\n');
+      const fileName = lines[0].replace(/^(PDF Document:|Word Document:|PowerPoint Presentation:)\s*/, '');
+      const fileType = lines[0].includes('PDF') ? 'PDF' : lines[0].includes('Word') ? 'Word Document' : 'PowerPoint';
       
+      // Create study-focused content based on the subject
+      const subjectContext = subject || 'study material';
       const fallbackContent = {
         keyNames: [
-          { term: "Document Analysis", description: `Key concepts from ${fileName}` },
-          { term: "Content Review", description: "Important points from your uploaded material" },
-          { term: "Study Focus", description: "Main topics covered in this document" }
+          { term: `${subjectContext.charAt(0).toUpperCase() + subjectContext.slice(1)} Concepts`, description: `Key concepts from your ${subjectContext} material` },
+          { term: "Important Terms", description: "Essential terminology from your document" },
+          { term: "Study Focus", description: "Main topics covered in this material" }
         ],
         keyDefinitions: [
-          { term: "Key Concept 1", description: "Important definition or concept from your document" },
-          { term: "Key Concept 2", description: "Another important concept from your material" },
-          { term: "Key Concept 3", description: "Additional concept to study" }
+          { term: "Definition 1", description: `Important concept from your ${subjectContext} material` },
+          { term: "Definition 2", description: `Key term from your ${subjectContext} notes` },
+          { term: "Definition 3", description: `Essential concept for ${subjectContext} understanding` }
         ],
         importantPoints: [
-          { term: "Main Point 1", description: "Primary takeaway from your document" },
-          { term: "Main Point 2", description: "Secondary important point" },
-          { term: "Main Point 3", description: "Additional key insight" }
+          { term: "Key Point 1", description: `Primary takeaway from your ${subjectContext} material` },
+          { term: "Key Point 2", description: `Important insight from your ${subjectContext} notes` },
+          { term: "Key Point 3", description: `Essential understanding for ${subjectContext}` }
         ],
         studyTips: [
-          { term: "Review Strategy", description: "Read through your document and identify the main themes" },
-          { term: "Practice Recall", description: "Try to explain the concepts without looking at your notes" },
-          { term: "Connect Ideas", description: "Look for relationships between different concepts in your material" }
+          { term: "Review Strategy", description: `Read through your ${subjectContext} material and identify the main themes` },
+          { term: "Practice Recall", description: `Try to explain the ${subjectContext} concepts without looking at your notes` },
+          { term: "Connect Ideas", description: `Look for relationships between different ${subjectContext} concepts` }
         ]
       };
       
@@ -65,7 +67,7 @@ export default async function handler(req, res) {
         success: true,
         summaryId,
         summary: fallbackContent,
-        note: `Processed ${fileType} file: ${fileName} - Content will be analyzed for study purposes`
+        note: `Processed ${fileType} file: ${fileName} - Created study materials for ${subjectContext}`
       });
     }
     
