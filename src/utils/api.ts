@@ -1,6 +1,6 @@
 import { projectId, publicAnonKey } from './supabase/info'
 
-const API_BASE_URL = `https://${projectId}.supabase.co/functions/v1/make-server-4e8803b0`
+const API_BASE_URL = '/api'
 
 // Generic API call function
 async function apiCall(endpoint: string, options: RequestInit = {}) {
@@ -8,7 +8,6 @@ async function apiCall(endpoint: string, options: RequestInit = {}) {
   
   const defaultOptions: RequestInit = {
     headers: {
-      'Authorization': `Bearer ${publicAnonKey}`,
       'Content-Type': 'application/json',
       ...options.headers,
     },
