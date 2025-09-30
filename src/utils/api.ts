@@ -1,6 +1,6 @@
 import { projectId, publicAnonKey } from './supabase/info'
 
-const API_BASE_URL = '/api'
+const API_BASE_URL = `https://${projectId}.supabase.co/functions/v1/make-server-4e8803b0`
 
 // Generic API call function
 async function apiCall(endpoint: string, options: RequestInit = {}) {
@@ -8,6 +8,7 @@ async function apiCall(endpoint: string, options: RequestInit = {}) {
   
   const defaultOptions: RequestInit = {
     headers: {
+      'Authorization': `Bearer ${publicAnonKey}`,
       'Content-Type': 'application/json',
       ...options.headers,
     },
@@ -38,6 +39,9 @@ export async function uploadFile(file: File, userId: string = 'default') {
 
   const response = await fetch(`${API_BASE_URL}/upload`, {
     method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${publicAnonKey}`,
+    },
     body: formData,
   })
 
