@@ -100,7 +100,7 @@ export function Dashboard({ onPageChange, userProgress, updateUserProgress, isBa
       {/* Header */}
       <div className="space-y-2">
         <h1 className="text-4xl font-bold gradient-text">Welcome back to Tate Studies</h1>
-        <p className="text-xl text-muted-foreground drop-shadow-[0_0_20px_rgba(59,130,246,0.3)] shadow-[0_0_30px_rgba(147,51,234,0.2)]">Lock in fuck nigga</p>
+        <p className="text-xl text-muted-foreground drop-shadow-[0_0_15px_rgba(59,130,246,0.4)] drop-shadow-[0_0_25px_rgba(147,51,234,0.3)]">Lock in fuck nigga</p>
       </div>
 
       {/* Stats Cards */}
