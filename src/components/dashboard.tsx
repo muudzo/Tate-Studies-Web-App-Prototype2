@@ -167,7 +167,7 @@ export function Dashboard({ onPageChange, userProgress, updateUserProgress, isBa
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-gradient-to-br from-[--neon-blue]/20 to-[--neon-purple]/20 rounded-lg flex items-center justify-center">
-                      {(upload.type === 'PDF' || upload.type === 'Summary') && <FileText className="h-6 w-6 text-[--neon-blue]" />}
+                      {(upload.type === 'PDF' || upload.type === 'Summary' || upload.type === 'Word Document' || upload.type === 'PowerPoint') && <FileText className="h-6 w-6 text-[--neon-blue]" />}
                       {upload.type === 'Image' && <Image className="h-6 w-6 text-[--neon-purple]" />}
                       {upload.type === 'Text' && <FileText className="h-6 w-6 text-[--neon-green]" />}
                     </div>

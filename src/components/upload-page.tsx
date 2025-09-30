@@ -69,7 +69,9 @@ export function UploadPage({ onPageChange, userProgress, updateUserProgress, isB
       case 'pdf': return 'PDF';
       case 'txt': return 'Text';
       case 'doc':
-      case 'docx': return 'Document';
+      case 'docx': return 'Word Document';
+      case 'ppt':
+      case 'pptx': return 'PowerPoint';
       case 'jpg':
       case 'jpeg':
       case 'png':
@@ -81,7 +83,8 @@ export function UploadPage({ onPageChange, userProgress, updateUserProgress, isB
   const getFileIcon = (type: string) => {
     switch (type) {
       case 'PDF':
-      case 'Document': return FileText;
+      case 'Word Document': return FileText;
+      case 'PowerPoint': return FileText;
       case 'Image': return Image;
       default: return FileType;
     }
@@ -267,12 +270,12 @@ export function UploadPage({ onPageChange, userProgress, updateUserProgress, isB
             <div className="space-y-2">
               <h3 className="text-xl font-semibold">Drop your files here</h3>
               <p className="text-muted-foreground">
-                Supports PDF, TXT, DOC, and Image files up to 50MB each
+                Supports PDF, TXT, DOC, DOCX, PPT, PPTX, and Image files up to 50MB each
               </p>
             </div>
 
             <div className="flex flex-wrap justify-center gap-2">
-              {['PDF', 'TXT', 'DOC', 'JPG', 'PNG'].map((type) => (
+              {['PDF', 'TXT', 'DOC', 'DOCX', 'PPT', 'PPTX', 'JPG', 'PNG'].map((type) => (
                 <Badge key={type} variant="outline" className="border-[--neon-blue]/30">
                   {type}
                 </Badge>
@@ -293,7 +296,7 @@ export function UploadPage({ onPageChange, userProgress, updateUserProgress, isB
               type="file"
               multiple
               className="hidden"
-              accept=".pdf,.txt,.doc,.docx,.jpg,.jpeg,.png,.gif"
+              accept=".pdf,.txt,.doc,.docx,.ppt,.pptx,.jpg,.jpeg,.png,.gif"
               onChange={handleFileInput}
             />
           </div>
