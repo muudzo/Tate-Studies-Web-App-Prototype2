@@ -1,0 +1,10 @@
+.vercel
+
+# API Keys and Secrets
+*api-key*
+*secret*
+*key*
+.env.local
+.env.production
+test-*.js
+*openai*

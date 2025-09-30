@@ -103,7 +103,72 @@ app.post('/make-server-4e8803b0/process', async (c) => {
     const openaiKey = Deno.env.get('OPENAI_API_KEY')
     
     if (!openaiKey) {
-      return c.json({ error: 'OpenAI API key not configured' }, 500)
+      console.log('Using free local processing - no API costs!')
+      
+      // Enhanced free processing with smart text analysis
+      const words = text.toLowerCase().split(/\s+/);
+      const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 10);
+      
+      // Extract key terms using frequency analysis
+      const wordFreq = {};
+      words.forEach(word => {
+        if (word.length > 4) { // Only meaningful words
+          wordFreq[word] = (wordFreq[word] || 0) + 1;
+        }
+      });
+      
+      const keyTerms = Object.entries(wordFreq)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 5)
+        .map(([term, freq]) => ({ term, description: `Important concept mentioned ${freq} times` }));
+      
+      // Smart content analysis
+      const keyNames = keyTerms.slice(0, 3).map(({term}) => ({
+        term: term.charAt(0).toUpperCase() + term.slice(1),
+        description: `Key concept from your notes`
+      }));
+      
+      const keyDefinitions = sentences.slice(0, 3).map((sentence, i) => ({
+        term: `Definition ${i + 1}`,
+        description: sentence.trim()
+      }));
+      
+      const importantPoints = sentences.slice(3, 6).map((sentence, i) => ({
+        term: `Key Point ${i + 1}`,
+        description: sentence.trim()
+      }));
+      
+      const studyTips = [
+        { term: "Review Strategy", description: "Read through your notes and identify the main themes" },
+        { term: "Practice Recall", description: "Try to explain the concepts without looking at your notes" },
+        { term: "Connect Ideas", description: "Look for relationships between different concepts in your material" }
+      ];
+      
+      const fallbackContent = {
+        keyNames,
+        keyDefinitions,
+        importantPoints,
+        studyTips
+      }
+      
+      // Store summary in database
+      const summaryId = `summary_${Date.now()}`
+      const summaryData = {
+        id: summaryId,
+        fileId,
+        subject: subject || 'General Studies',
+        processedAt: new Date().toISOString(),
+        ...fallbackContent
+      }
+      
+      await kv.set(summaryId, summaryData)
+      
+      return c.json({
+        success: true,
+        summaryId,
+        summary: fallbackContent,
+        note: 'Processed with free local analysis - no API costs!'
+      })
     }
 
     if (!text) {
@@ -163,15 +228,46 @@ Format your response as JSON with these exact keys: keyNames, keyDefinitions, im
     // Parse AI response
     let parsedContent
     try {
-      parsedContent = JSON.parse(content)
+      // Clean the content before parsing
+      const cleanedContent = content.trim()
+      parsedContent = JSON.parse(cleanedContent)
+      
+      // Validate the structure
+      if (!parsedContent.keyNames || !parsedContent.keyDefinitions || 
+          !parsedContent.importantPoints || !parsedContent.studyTips) {
+        throw new Error('Invalid AI response structure')
+      }
     } catch (parseError) {
       console.log('Failed to parse AI response as JSON:', content)
+      console.log('Parse error:', parseError)
+      
+      // Enhanced fallback: try to extract information from the text
+      const lines = content.split('\n').filter(line => line.trim())
+      const keyNames = []
+      const keyDefinitions = []
+      const importantPoints = []
+      const studyTips = []
+      
+      // Try to extract structured information
+      lines.forEach(line => {
+        if (line.toLowerCase().includes('definition') || line.includes(':')) {
+          const parts = line.split(':')
+          if (parts.length === 2) {
+            keyDefinitions.push({ term: parts[0].trim(), description: parts[1].trim() })
+          }
+        } else if (line.toLowerCase().includes('tip') || line.toLowerCase().includes('suggestion')) {
+          studyTips.push({ term: "Study Tip", description: line.trim() })
+        } else if (line.length > 20) {
+          importantPoints.push({ term: "Key Point", description: line.trim() })
+        }
+      })
+      
       // Fallback: create structured response from text
       parsedContent = {
-        keyNames: [{ term: "AI Processing", description: "Content processed successfully but needs manual review" }],
-        keyDefinitions: [{ term: "Summary", description: content.substring(0, 500) + "..." }],
-        importantPoints: [{ term: "Main Content", description: "Please review the processed content manually" }],
-        studyTips: [{ term: "Review", description: "Go through the content and create your own summary" }]
+        keyNames: keyNames.length > 0 ? keyNames : [{ term: "AI Processing", description: "Content processed successfully but needs manual review" }],
+        keyDefinitions: keyDefinitions.length > 0 ? keyDefinitions : [{ term: "Summary", description: content.substring(0, 500) + "..." }],
+        importantPoints: importantPoints.length > 0 ? importantPoints : [{ term: "Main Content", description: "Please review the processed content manually" }],
+        studyTips: studyTips.length > 0 ? studyTips : [{ term: "Review", description: "Go through the content and create your own summary" }]
       }
     }
 
@@ -222,10 +318,13 @@ app.get('/make-server-4e8803b0/summaries/:userId', async (c) => {
     const userId = c.req.param('userId')
     const summaries = await kv.getByPrefix('summary_')
     
-    // Filter summaries for this user (if you want user-specific filtering)
+    // Filter summaries for this user and ensure they have proper structure
     const userSummaries = summaries.filter(summary => 
-      summary.value && summary.value.fileId
-    )
+      summary && summary.id && summary.processedAt
+    ).map(summary => ({
+      key: summary.id,
+      value: summary
+    }))
 
     return c.json({ success: true, summaries: userSummaries })
   } catch (error) {
@@ -357,6 +456,277 @@ app.get('/make-server-4e8803b0/progress/:userId', async (c) => {
   } catch (error) {
     console.log('Get progress error:', error)
     return c.json({ error: 'Failed to retrieve progress' }, 500)
+  }
+})
+
+// Update summary
+app.put('/make-server-4e8803b0/summary/:id', async (c) => {
+  try {
+    const summaryId = c.req.param('id')
+    const { keyNames, keyDefinitions, importantPoints, studyTips } = await c.req.json()
+    
+    // Get existing summary
+    const existingSummary = await kv.get(summaryId)
+    if (!existingSummary) {
+      return c.json({ error: 'Summary not found' }, 404)
+    }
+    
+    // Update summary data
+    const updatedSummary = {
+      ...existingSummary,
+      keyNames: keyNames || existingSummary.keyNames,
+      keyDefinitions: keyDefinitions || existingSummary.keyDefinitions,
+      importantPoints: importantPoints || existingSummary.importantPoints,
+      studyTips: studyTips || existingSummary.studyTips,
+      updatedAt: new Date().toISOString()
+    }
+    
+    await kv.set(summaryId, updatedSummary)
+    
+    return c.json({ success: true, summary: updatedSummary })
+  } catch (error) {
+    console.log('Update summary error:', error)
+    return c.json({ error: 'Failed to update summary' }, 500)
+  }
+})
+
+// Delete summary
+app.delete('/make-server-4e8803b0/summary/:id', async (c) => {
+  try {
+    const summaryId = c.req.param('id')
+    
+    // Check if summary exists
+    const summary = await kv.get(summaryId)
+    if (!summary) {
+      return c.json({ error: 'Summary not found' }, 404)
+    }
+    
+    // Delete summary
+    await kv.del(summaryId)
+    
+    return c.json({ success: true, message: 'Summary deleted successfully' })
+  } catch (error) {
+    console.log('Delete summary error:', error)
+    return c.json({ error: 'Failed to delete summary' }, 500)
+  }
+})
+
+// Generate multiple choice questions from summary
+app.post('/make-server-4e8803b0/multiple-choice', async (c) => {
+  try {
+    const { summaryId, numQuestions = 5 } = await c.req.json()
+    const summary = await kv.get(summaryId)
+    
+    if (!summary) {
+      return c.json({ error: 'Summary not found' }, 404)
+    }
+
+    const openaiKey = Deno.env.get('OPENAI_API_KEY')
+    if (!openaiKey) {
+      console.log('Using free question generation - no API costs!')
+      
+      // Enhanced free question generation based on content
+      const content = summary.keyDefinitions || [];
+      const points = summary.importantPoints || [];
+      
+      // Generate questions from actual content
+      const fallbackQuestions = [];
+      
+      // Question 1: Based on key definitions
+      if (content.length > 0) {
+        fallbackQuestions.push({
+          id: 'q1',
+          question: `What is the main focus of ${content[0]?.term || 'the key concept'}?`,
+          options: {
+            A: content[0]?.description?.substring(0, 50) + '...' || 'Option A',
+            B: 'A different approach to the concept',
+            C: 'The opposite of the concept',
+            D: 'An unrelated business strategy'
+          },
+          correct: 'A',
+          explanation: content[0]?.description || 'This is the correct definition from your notes.',
+          difficulty: 'easy',
+          category: 'Key Definitions'
+        });
+      }
+      
+      // Question 2: Based on important points
+      if (points.length > 0) {
+        fallbackQuestions.push({
+          id: 'q2',
+          question: `Which statement best describes the key point about ${points[0]?.term || 'the main concept'}?`,
+          options: {
+            A: points[0]?.description?.substring(0, 60) + '...' || 'Option A',
+            B: 'A contrasting viewpoint',
+            C: 'An outdated perspective',
+            D: 'An unrelated concept'
+          },
+          correct: 'A',
+          explanation: points[0]?.description || 'This matches the key point from your study material.',
+          difficulty: 'medium',
+          category: 'Important Points'
+        });
+      }
+      
+      // Question 3: General knowledge question
+      fallbackQuestions.push({
+        id: 'q3',
+        question: 'What is the best way to study this material effectively?',
+        options: {
+          A: 'Read through once and move on',
+          B: 'Review multiple times and practice recall',
+          C: 'Memorize everything word for word',
+          D: 'Skip the difficult parts'
+        },
+        correct: 'B',
+        explanation: 'Effective studying involves multiple reviews and active recall practice to reinforce learning.',
+        difficulty: 'easy',
+        category: 'Study Strategy'
+      });
+      
+      // Add more questions if we have more content
+      if (content.length > 1) {
+        fallbackQuestions.push({
+          id: 'q4',
+          question: `Which of the following relates to ${content[1]?.term || 'the second concept'}?`,
+          options: {
+            A: content[1]?.description?.substring(0, 50) + '...' || 'Option A',
+            B: 'A completely different concept',
+            C: 'An outdated definition',
+            D: 'An unrelated topic'
+          },
+          correct: 'A',
+          explanation: content[1]?.description || 'This is the correct information from your notes.',
+          difficulty: 'medium',
+          category: 'Content Analysis'
+        });
+      }
+      
+      // Store questions
+      const questionSetId = `questions_${summaryId}_${Date.now()}`
+      await kv.set(questionSetId, {
+        id: questionSetId,
+        summaryId,
+        questions: fallbackQuestions,
+        createdAt: new Date().toISOString()
+      })
+      
+      return c.json({
+        success: true,
+        questionSetId,
+        questions: fallbackQuestions,
+        note: 'Generated free questions from your content - no API costs!'
+      })
+    }
+
+    // Create prompt for multiple choice questions
+    const prompt = `Based on the following study material, generate ${numQuestions} multiple choice questions that test understanding and application of the concepts.
+
+Study Material:
+Subject: ${summary.subject}
+Key Definitions: ${JSON.stringify(summary.keyDefinitions)}
+Important Points: ${JSON.stringify(summary.importantPoints)}
+Key Names: ${JSON.stringify(summary.keyNames)}
+
+Generate questions that:
+1. Test conceptual understanding, not just memorization
+2. Include application scenarios where possible
+3. Have 4 answer choices each (A, B, C, D)
+4. Include one correct answer and three plausible distractors
+5. Cover different difficulty levels (easy, medium, hard)
+
+Format your response as JSON with this structure:
+{
+  "questions": [
+    {
+      "id": "q1",
+      "question": "Question text here?",
+      "options": {
+        "A": "Option A",
+        "B": "Option B", 
+        "C": "Option C",
+        "D": "Option D"
+      },
+      "correct": "A",
+      "explanation": "Why this answer is correct",
+      "difficulty": "medium",
+      "category": "Key concept category"
+    }
+  ]
+}`
+
+    // Call OpenAI API
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+        max_tokens: 3000
+      })
+    })
+
+    if (!response.ok) {
+      const errorData = await response.text()
+      console.log('OpenAI API error:', errorData)
+      return c.json({ error: 'Failed to generate questions' }, 500)
+    }
+
+    const aiResponse = await response.json()
+    const content = aiResponse.choices[0]?.message?.content
+
+    if (!content) {
+      return c.json({ error: 'No content returned from AI' }, 500)
+    }
+
+    // Parse AI response
+    let questions
+    try {
+      questions = JSON.parse(content)
+    } catch (parseError) {
+      console.log('Failed to parse AI response:', content)
+      return c.json({ error: 'Failed to parse AI response' }, 500)
+    }
+
+    // Store questions
+    const questionSetId = `questions_${summaryId}_${Date.now()}`
+    await kv.set(questionSetId, {
+      id: questionSetId,
+      summaryId,
+      questions: questions.questions,
+      createdAt: new Date().toISOString()
+    })
+
+    return c.json({
+      success: true,
+      questionSetId,
+      questions: questions.questions
+    })
+
+  } catch (error) {
+    console.log('Multiple choice generation error:', error)
+    return c.json({ error: 'Failed to generate multiple choice questions' }, 500)
+  }
+})
+
+// Get multiple choice questions
+app.get('/make-server-4e8803b0/multiple-choice/:setId', async (c) => {
+  try {
+    const setId = c.req.param('setId')
+    const questionSet = await kv.get(setId)
+    
+    if (!questionSet) {
+      return c.json({ error: 'Question set not found' }, 404)
+    }
+
+    return c.json({ success: true, questions: questionSet.questions })
+  } catch (error) {
+    console.log('Get questions error:', error)
+    return c.json({ error: 'Failed to retrieve questions' }, 500)
   }
 })
 

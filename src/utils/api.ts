@@ -72,6 +72,42 @@ export async function getSummary(summaryId: string) {
   return apiCall(`/summary/${summaryId}`)
 }
 
+// Update summary
+export async function updateSummary(summaryId: string, updates: {
+  keyNames?: Array<{ term: string; description: string }>
+  keyDefinitions?: Array<{ term: string; description: string }>
+  importantPoints?: Array<{ term: string; description: string }>
+  studyTips?: Array<{ term: string; description: string }>
+}) {
+  return apiCall(`/summary/${summaryId}`, {
+    method: 'PUT',
+    body: JSON.stringify(updates),
+  })
+}
+
+// Delete summary
+export async function deleteSummary(summaryId: string) {
+  return apiCall(`/summary/${summaryId}`, {
+    method: 'DELETE',
+  })
+}
+
+// Generate multiple choice questions
+export async function generateMultipleChoice(summaryId: string, numQuestions: number = 5) {
+  return apiCall('/multiple-choice', {
+    method: 'POST',
+    body: JSON.stringify({
+      summaryId,
+      numQuestions,
+    }),
+  })
+}
+
+// Get multiple choice questions
+export async function getMultipleChoiceQuestions(setId: string) {
+  return apiCall(`/multiple-choice/${setId}`)
+}
+
 // Get user summaries
 export async function getUserSummaries(userId: string = 'default') {
   return apiCall(`/summaries/${userId}`)
@@ -158,4 +194,26 @@ export interface UserProgress {
   streak: number
   achievements: any[]
   lastUpdated: string
+}
+
+export interface MultipleChoiceQuestion {
+  id: string
+  question: string
+  options: {
+    A: string
+    B: string
+    C: string
+    D: string
+  }
+  correct: 'A' | 'B' | 'C' | 'D'
+  explanation: string
+  difficulty: 'easy' | 'medium' | 'hard'
+  category: string
+}
+
+export interface QuestionSet {
+  id: string
+  summaryId: string
+  questions: MultipleChoiceQuestion[]
+  createdAt: string
 }
