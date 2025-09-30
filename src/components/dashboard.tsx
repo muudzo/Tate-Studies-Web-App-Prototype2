@@ -99,8 +99,8 @@ export function Dashboard({ onPageChange, userProgress, updateUserProgress, isBa
     <div className="flex-1 p-8 space-y-8 animate-fade-in">
       {/* Header */}
       <div className="space-y-2">
-        <h1 className="text-4xl font-bold gradient-text drop-shadow-[0_0_20px_rgba(59,130,246,0.3)] shadow-[0_0_30px_rgba(147,51,234,0.2)]">Welcome back to Tate Studies</h1>
-        <p className="text-xl text-muted-foreground">Lock in fuck nigga</p>
+        <h1 className="text-4xl font-bold gradient-text">Welcome back to Tate Studies</h1>
+        <p className="text-xl text-muted-foreground drop-shadow-[0_0_20px_rgba(59,130,246,0.3)] shadow-[0_0_30px_rgba(147,51,234,0.2)]">Lock in fuck nigga</p>
       </div>
 
       {/* Stats Cards */}
