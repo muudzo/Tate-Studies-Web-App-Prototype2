@@ -158,16 +158,25 @@ export async function extractTextFromFile(file: File): Promise<string> {
     return await file.text()
   } else if (fileType.includes('pdf')) {
     // For PDF files, we'll need to handle this on the server side
-    return `[PDF File: ${file.name}] - This PDF will be processed by the AI system. Please upload this file and the system will extract and analyze the content automatically.`
+    // Return a unique identifier so the server knows to process this file
+    return `PDF_CONTENT_${file.name}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   } else if (fileType.includes('image')) {
     // For images, we'll need OCR processing on the server side
-    return `[Image File: ${file.name}] - This image contains text that will be extracted using OCR technology. Please upload this file and the AI will analyze any text content found in the image.`
+    return `IMAGE_CONTENT_${file.name}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   } else if (fileName.endsWith('.doc') || fileName.endsWith('.docx')) {
-    // Word documents
-    return `[Word Document: ${file.name}] - This Word document will be processed to extract text content. The system will analyze the document structure and extract all text for study purposes.`
+    // Word documents - try to read as text first
+    try {
+      return await file.text()
+    } catch {
+      return `WORD_CONTENT_${file.name}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    }
   } else if (fileName.endsWith('.ppt') || fileName.endsWith('.pptx')) {
-    // PowerPoint presentations
-    return `[PowerPoint Presentation: ${file.name}] - This PowerPoint presentation will be processed to extract text from slides. The system will analyze slide content, notes, and text for comprehensive study material.`
+    // PowerPoint presentations - try to read as text first
+    try {
+      return await file.text()
+    } catch {
+      return `PPT_CONTENT_${file.name}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    }
   } else {
     throw new Error(`Unsupported file type: ${fileType}`)
   }
