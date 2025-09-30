@@ -237,6 +237,13 @@ export function UploadPage({ onPageChange, userProgress, updateUserProgress, isB
             <span className="text-sm">Demo Mode: AI processing will be simulated</span>
           </div>
         )}
+        
+        {isBackendReady && (
+          <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-green-600">
+            <AlertCircle className="h-4 w-4" />
+            <span className="text-sm">🆓 Free Mode: Files will be processed with smart local analysis - no API costs!</span>
+          </div>
+        )}
       </div>
 
       {/* Upload Area */}
