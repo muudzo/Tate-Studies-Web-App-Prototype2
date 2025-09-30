@@ -1,4 +1,4 @@
-// Vercel API route for getting user summaries
+// Vercel API route for getting user progress
 export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -17,14 +17,18 @@ export default async function handler(req, res) {
   try {
     const { userId } = req.query;
     
-    // Return empty summaries array for now
+    // Return default progress data
     return res.status(200).json({ 
       success: true, 
-      summaries: []
+      progress: {
+        xp: 0,
+        level: 1,
+        lastUpdated: new Date().toISOString()
+      }
     });
 
   } catch (error) {
-    console.log('Get user summaries error:', error);
-    return res.status(500).json({ error: 'Failed to retrieve summaries' });
+    console.log('Get progress error:', error);
+    return res.status(500).json({ error: 'Failed to retrieve progress' });
   }
 }
