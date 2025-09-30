@@ -15,10 +15,39 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { fileName, fileType, fileSize, text, subject } = req.body;
+    // Handle both JSON and FormData requests
+    let fileName, fileType, fileSize, text, subject, userId;
+    
+    if (req.headers['content-type']?.includes('multipart/form-data')) {
+      // Handle FormData (file upload)
+      const formData = await req.formData();
+      const file = formData.get('file');
+      userId = formData.get('userId') || 'default';
+      
+      if (file) {
+        fileName = file.name;
+        fileType = file.type;
+        fileSize = file.size;
+        // For now, we'll extract text on the client side
+        text = `FILE_CONTENT_${fileName}_${Date.now()}`;
+      } else {
+        return res.status(400).json({ error: 'No file provided' });
+      }
+    } else {
+      // Handle JSON request
+      const body = req.body;
+      fileName = body.fileName;
+      fileType = body.fileType;
+      fileSize = body.fileSize;
+      text = body.text;
+      subject = body.subject;
+      userId = body.userId || 'default';
+    }
     
     // Generate a unique file ID
     const fileId = `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    console.log('File upload:', { fileName, fileType, fileSize, userId });
     
     // For now, just return success - in a real implementation, you'd store the file
     return res.status(200).json({
