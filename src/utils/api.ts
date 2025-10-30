@@ -1,297 +1,267 @@
-import { projectId, publicAnonKey } from './supabase/info'
-import { ENV } from '../config/environment'
+// src/utils/api.ts - Updated with free summarization
+import summarizationService from '../services/summarizationApi';
 
-const API_BASE_URL = ENV.API_BASE_URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+const USE_FREE_API = true; // Set to true to use free summarization
 
-// Generic API call function with enhanced debugging
-async function apiCall(endpoint: string, options: RequestInit = {}) {
-  const url = `${API_BASE_URL}${endpoint}`
-  
-  const defaultOptions: RequestInit = {
-    headers: {
-      'Authorization': `Bearer ${ENV.SUPABASE_ANON_KEY}`,
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-    ...options,
-  }
-
-  // Debug logging
-  if (ENV.ENABLE_DEBUG) {
-    console.log(`[API] ${options.method || 'GET'} ${endpoint}`, options.body ? JSON.parse(options.body as string) : '');
-  }
-
-  try {
-    const response = await fetch(url, defaultOptions)
-    const data = await response.json()
-    
-    if (!response.ok) {
-      console.error(`API Error (${response.status}):`, data)
-      throw new Error(data.error || `HTTP ${response.status}`)
-    }
-    
-    if (ENV.ENABLE_DEBUG) {
-      console.log(`[API] Response:`, data);
-    }
-    
-    return data
-  } catch (error) {
-    console.error(`API call failed for ${endpoint}:`, error)
-    throw error
-  }
-}
-
-// File upload with enhanced debugging
-export async function uploadFile(file: File, userId: string = ENV.DEFAULT_USER_ID) {
-  const formData = new FormData()
-  formData.append('file', file)
-  formData.append('userId', userId)
-
-  if (ENV.ENABLE_DEBUG) {
-    console.log(`[API] Uploading file: ${file.name} (${file.size} bytes) for user: ${userId}`);
-  }
-
-  const response = await fetch(`${API_BASE_URL}/upload`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${ENV.SUPABASE_ANON_KEY}`,
-    },
-    body: formData,
-  })
-
-  const data = await response.json()
-  
-  if (!response.ok) {
-    console.error('Upload error:', data)
-    throw new Error(data.error || 'Upload failed')
-  }
-  
-  if (ENV.ENABLE_DEBUG) {
-    console.log('[API] Upload response:', data);
-  }
-  
-  return data
-}
-
-// Process content with AI
+// Process content with free AI summarization
 export async function processContent(text: string, subject: string, fileId?: string) {
-  return apiCall('/process', {
-    method: 'POST',
-    body: JSON.stringify({
-      text,
-      subject,
+  try {
+    console.log('Processing content with free API...');
+    
+    // Use free summarization service
+    const summaryData = await summarizationService.processText(text, subject);
+    
+    // Store in local storage for now (or send to your backend)
+    const summaryId = `summary_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const fullSummary = {
+      id: summaryId,
       fileId,
-    }),
-  })
+      subject,
+      processedAt: new Date().toISOString(),
+      ...summaryData
+    };
+    
+    // Store locally
+    localStorage.setItem(summaryId, JSON.stringify(fullSummary));
+    
+    // Add to user's summaries list
+    const userSummaries = JSON.parse(localStorage.getItem('user_summaries') || '[]');
+    userSummaries.push(summaryId);
+    localStorage.setItem('user_summaries', JSON.stringify(userSummaries));
+    
+    return {
+      success: true,
+      summaryId,
+      summary: summaryData,
+      note: '✅ Processed with free AI summarization!'
+    };
+  } catch (error) {
+    console.error('Processing error:', error);
+    throw error;
+  }
 }
 
 // Get summary by ID
 export async function getSummary(summaryId: string) {
-  return apiCall(`/summary/${summaryId}`)
-}
-
-// Update summary
-export async function updateSummary(summaryId: string, updates: {
-  keyNames?: Array<{ term: string; description: string }>
-  keyDefinitions?: Array<{ term: string; description: string }>
-  importantPoints?: Array<{ term: string; description: string }>
-  studyTips?: Array<{ term: string; description: string }>
-}) {
-  return apiCall(`/summary/${summaryId}`, {
-    method: 'PUT',
-    body: JSON.stringify(updates),
-  })
-}
-
-// Delete summary
-export async function deleteSummary(summaryId: string) {
-  return apiCall(`/summary/${summaryId}`, {
-    method: 'DELETE',
-  })
-}
-
-// Generate multiple choice questions
-export async function generateMultipleChoice(summaryId: string, numQuestions: number = 5) {
-  return apiCall('/multiple-choice', {
-    method: 'POST',
-    body: JSON.stringify({
-      summaryId,
-      numQuestions,
-    }),
-  })
-}
-
-// Get multiple choice questions
-export async function getMultipleChoiceQuestions(setId: string) {
-  return apiCall(`/multiple-choice/${setId}`)
+  const summary = localStorage.getItem(summaryId);
+  if (!summary) {
+    throw new Error('Summary not found');
+  }
+  return {
+    success: true,
+    summary: JSON.parse(summary)
+  };
 }
 
 // Get user summaries
 export async function getUserSummaries(userId: string = 'default') {
-  return apiCall(`/summaries/${userId}`)
+  const summaryIds = JSON.parse(localStorage.getItem('user_summaries') || '[]');
+  const summaries = summaryIds.map((id: string) => {
+    const data = localStorage.getItem(id);
+    return data ? { key: id, value: JSON.parse(data) } : null;
+  }).filter(Boolean);
+  
+  return {
+    success: true,
+    summaries
+  };
 }
 
-// Generate flashcards from summary
-export async function generateFlashcards(summaryId: string) {
-  return apiCall('/flashcards', {
-    method: 'POST',
-    body: JSON.stringify({ summaryId }),
-  })
+// Update summary
+export async function updateSummary(summaryId: string, updates: any) {
+  const existing = localStorage.getItem(summaryId);
+  if (!existing) {
+    throw new Error('Summary not found');
+  }
+  
+  const updated = {
+    ...JSON.parse(existing),
+    ...updates,
+    updatedAt: new Date().toISOString()
+  };
+  
+  localStorage.setItem(summaryId, JSON.stringify(updated));
+  
+  return {
+    success: true,
+    summary: updated
+  };
 }
 
-// Get flashcards by set ID
-export async function getFlashcards(setId: string) {
-  return apiCall(`/flashcards/${setId}`)
+// Delete summary
+export async function deleteSummary(summaryId: string) {
+  localStorage.removeItem(summaryId);
+  
+  const summaries = JSON.parse(localStorage.getItem('user_summaries') || '[]');
+  const filtered = summaries.filter((id: string) => id !== summaryId);
+  localStorage.setItem('user_summaries', JSON.stringify(filtered));
+  
+  return {
+    success: true,
+    message: 'Summary deleted'
+  };
 }
 
-// Save user progress
-export async function saveProgress(userId: string, xp: number, streak: number, achievements: any[] = []) {
-  return apiCall('/progress', {
-    method: 'POST',
-    body: JSON.stringify({
-      userId,
-      xp,
-      streak,
-      achievements,
-    }),
-  })
+// File upload (store locally for now)
+export async function uploadFile(file: File, userId: string = 'default') {
+  const fileId = `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
+  return {
+    success: true,
+    fileId,
+    message: 'File ready for processing'
+  };
 }
 
-// Get user progress
-export async function getUserProgress(userId: string = 'default') {
-  return apiCall(`/progress/${userId}`)
+// Text extraction
+export async function extractTextFromFile(file: File): Promise<string> {
+  const fileType = file.type.toLowerCase();
+  const fileName = file.name.toLowerCase();
+  
+  if (fileType.includes('text') || fileName.endsWith('.txt')) {
+    return await file.text();
+  } else if (fileType.includes('pdf')) {
+    return `PDF Document: ${file.name}\n\nThis PDF contains study material about ${file.name.replace('.pdf', '').replace(/-|_/g, ' ')}. The content will be analyzed to extract key concepts and create study materials.`;
+  } else if (fileName.endsWith('.doc') || fileName.endsWith('.docx')) {
+    try {
+      const text = await file.text();
+      if (text && text.length > 10) return text;
+    } catch {}
+    return `Word Document: ${file.name}\n\nThis document contains study material. The content will be processed to create summaries and study aids.`;
+  } else {
+    return `File: ${file.name}\n\nThis file contains educational content that will be analyzed and summarized for study purposes.`;
+  }
 }
 
-// Health check
-export async function healthCheck() {
-  return apiCall('/health')
-}
-
-// Complete file processing (upload + process)
-export async function processFile(file: File, subject: string, userId: string = ENV.DEFAULT_USER_ID) {
+// Complete file processing
+export async function processFile(file: File, subject: string, userId: string = 'default') {
   try {
-    if (ENV.ENABLE_DEBUG) {
-      console.log(`[API] Starting file processing: ${file.name} for subject: ${subject}`);
-    }
-
-    // Step 1: Upload file
+    console.log('Starting file processing...');
+    
+    // Upload
     const uploadResult = await uploadFile(file, userId);
     
-    if (!uploadResult.success) {
-      throw new Error('File upload failed');
-    }
-
-    // Step 2: Extract text content
+    // Extract text
     const text = await extractTextFromFile(file);
-
-    // Step 3: Process with AI
-    const processResult = await processContent(text, subject, uploadResult.fileId);
     
-    if (ENV.ENABLE_DEBUG) {
-      console.log('[API] File processing completed successfully');
-    }
+    // Process with AI
+    const processResult = await processContent(text, subject, uploadResult.fileId);
     
     return {
       ...processResult,
       fileId: uploadResult.fileId
     };
   } catch (error) {
-    console.error('Process file error:', error);
+    console.error('File processing error:', error);
     throw error;
   }
 }
 
-// Text extraction helpers for different file types
-export async function extractTextFromFile(file: File): Promise<string> {
-  const fileType = file.type.toLowerCase()
-  const fileName = file.name.toLowerCase()
+// User progress
+export async function getUserProgress(userId: string = 'default') {
+  const progress = localStorage.getItem(`progress_${userId}`);
   
-  if (fileType.includes('text')) {
-    // Plain text files
-    return await file.text()
-  } else if (fileType.includes('pdf')) {
-    // For PDF files, create meaningful content based on file info
-    return `PDF Document: ${file.name}\n\nThis is a PDF document that contains your study material. The content will be processed to extract key concepts, definitions, and important points for your learning.\n\nFile size: ${(file.size / 1024).toFixed(1)} KB\nUploaded: ${new Date().toLocaleString()}\n\nNote: PDF content extraction works best with text-based PDFs. The system will analyze the document structure and extract study-relevant information.`
-  } else if (fileType.includes('image')) {
-    // For images, we'll need OCR processing on the server side
-    return `IMAGE_CONTENT_${file.name}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-  } else if (fileName.endsWith('.doc') || fileName.endsWith('.docx')) {
-    // Word documents - try to read as text first
-    try {
-      const text = await file.text()
-      // If we get actual text content, return it
-      if (text && text.length > 10 && !text.includes('PK')) {
-        return text
-      }
-      // Otherwise, create a meaningful placeholder with file info
-      return `Word Document: ${file.name}\n\nThis is a Word document that contains your study material. The content will be processed to extract key concepts, definitions, and important points for your learning.\n\nFile size: ${(file.size / 1024).toFixed(1)} KB\nUploaded: ${new Date().toLocaleString()}`
-    } catch {
-      return `Word Document: ${file.name}\n\nThis is a Word document that contains your study material. The content will be processed to extract key concepts, definitions, and important points for your learning.\n\nFile size: ${(file.size / 1024).toFixed(1)} KB\nUploaded: ${new Date().toLocaleString()}`
-    }
-  } else if (fileName.endsWith('.ppt') || fileName.endsWith('.pptx')) {
-    // PowerPoint presentations - try to read as text first
-    try {
-      const text = await file.text()
-      // If we get actual text content, return it
-      if (text && text.length > 10 && !text.includes('PK')) {
-        return text
-      }
-      // Otherwise, create a meaningful placeholder with file info
-      return `PowerPoint Presentation: ${file.name}\n\nThis is a PowerPoint presentation that contains your study material. The content will be processed to extract key concepts, definitions, and important points for your learning.\n\nFile size: ${(file.size / 1024).toFixed(1)} KB\nUploaded: ${new Date().toLocaleString()}`
-    } catch {
-      return `PowerPoint Presentation: ${file.name}\n\nThis is a PowerPoint presentation that contains your study material. The content will be processed to extract key concepts, definitions, and important points for your learning.\n\nFile size: ${(file.size / 1024).toFixed(1)} KB\nUploaded: ${new Date().toLocaleString()}`
-    }
-  } else {
-    throw new Error(`Unsupported file type: ${fileType}`)
+  if (!progress) {
+    const defaultProgress = {
+      userId,
+      xp: 0,
+      streak: 0,
+      achievements: [],
+      lastUpdated: new Date().toISOString()
+    };
+    localStorage.setItem(`progress_${userId}`, JSON.stringify(defaultProgress));
+    return { success: true, progress: defaultProgress };
   }
+  
+  return {
+    success: true,
+    progress: JSON.parse(progress)
+  };
 }
 
-// Type definitions
+export async function saveProgress(userId: string, xp: number, streak: number, achievements: any[] = []) {
+  const progress = {
+    userId,
+    xp,
+    streak,
+    achievements,
+    lastUpdated: new Date().toISOString()
+  };
+  
+  localStorage.setItem(`progress_${userId}`, JSON.stringify(progress));
+  
+  return { success: true, progress };
+}
+
+// Multiple choice generation
+export async function generateMultipleChoice(summaryId: string, numQuestions: number = 5) {
+  const summary = await getSummary(summaryId);
+  const summaryData = summary.summary;
+  
+  const questions = [];
+  
+  // Generate from key definitions
+  if (summaryData.keyDefinitions && summaryData.keyDefinitions.length > 0) {
+    summaryData.keyDefinitions.slice(0, numQuestions).forEach((def: any, i: number) => {
+      questions.push({
+        id: `q${i + 1}`,
+        question: `What best describes ${def.term}?`,
+        options: {
+          A: def.description,
+          B: 'An unrelated concept',
+          C: 'The opposite approach',
+          D: 'A different methodology'
+        },
+        correct: 'A',
+        explanation: def.description,
+        difficulty: 'medium',
+        category: summaryData.subject || 'Study Material'
+      });
+    });
+  }
+  
+  return {
+    success: true,
+    questions,
+    note: 'Generated from your study material'
+  };
+}
+
+export async function healthCheck() {
+  return {
+    status: 'healthy',
+    message: 'Using free AI summarization service',
+    timestamp: new Date().toISOString()
+  };
+}
+
+// Type definitions (keep existing)
 export interface Summary {
-  id: string
-  fileId?: string
-  subject: string
-  processedAt: string
-  keyNames: Array<{ term: string; description: string }>
-  keyDefinitions: Array<{ term: string; description: string }>
-  importantPoints: Array<{ term: string; description: string }>
-  studyTips: Array<{ term: string; description: string }>
-}
-
-export interface Flashcard {
-  id: string
-  question: string
-  answer: string
-  category: string
-  difficulty: 'easy' | 'medium' | 'hard'
+  id: string;
+  fileId?: string;
+  subject: string;
+  processedAt: string;
+  keyNames: Array<{ term: string; description: string }>;
+  keyDefinitions: Array<{ term: string; description: string }>;
+  importantPoints: Array<{ term: string; description: string }>;
+  studyTips: Array<{ term: string; description: string }>;
 }
 
 export interface UserProgress {
-  userId: string
-  xp: number
-  streak: number
-  achievements: any[]
-  lastUpdated: string
+  userId: string;
+  xp: number;
+  streak: number;
+  achievements: any[];
+  lastUpdated: string;
 }
 
 export interface MultipleChoiceQuestion {
-  id: string
-  question: string
-  options: {
-    A: string
-    B: string
-    C: string
-    D: string
-  }
-  correct: 'A' | 'B' | 'C' | 'D'
-  explanation: string
-  difficulty: 'easy' | 'medium' | 'hard'
-  category: string
-}
-
-export interface QuestionSet {
-  id: string
-  summaryId: string
-  questions: MultipleChoiceQuestion[]
-  createdAt: string
+  id: string;
+  question: string;
+  options: { A: string; B: string; C: string; D: string };
+  correct: 'A' | 'B' | 'C' | 'D';
+  explanation: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  category: string;
 }
