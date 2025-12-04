@@ -8,7 +8,7 @@ import { Separator } from './ui/separator';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Download, Gamepad2, FileText, Brain, Lightbulb, Users, Calendar, Tag, Edit, Save, X, Trash2 } from 'lucide-react';
-import { getSummary, updateSummary, deleteSummary } from '../utils/api';
+import { getSummary, updateSummary, deleteSummary, getUserSummaries } from '../utils/api';
 import type { Summary } from '../utils/api';
 
 interface SummaryViewProps {
@@ -65,6 +65,25 @@ export function SummaryView({ onPageChange, isBackendReady }: SummaryViewProps) 
       });
     }
   }, [isBackendReady]);
+
+  // When running with backend/local storage ready, load the latest user summary
+  useEffect(() => {
+    const loadLatest = async () => {
+      try {
+        const response = await getUserSummaries('default');
+        if (response && response.summaries && response.summaries.length > 0) {
+          // summaries are stored as { key, value } where value is the summary object
+          const latest = response.summaries[response.summaries.length - 1];
+          setSelectedNote(latest.value);
+        }
+      } catch (err) {
+        console.warn('No user summaries found or failed to load:', err);
+      }
+    };
+
+    // Only attempt to load when backend/local mode is available
+    loadLatest();
+  }, []);
 
   const handleEdit = () => {
     if (selectedNote) {
