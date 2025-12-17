@@ -7,7 +7,7 @@ import { ScrollArea } from './ui/scroll-area';
 import { Separator } from './ui/separator';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
-import { Download, Gamepad2, FileText, Brain, Lightbulb, Users, Calendar, Tag, Edit, Save, X, Trash2 } from 'lucide-react';
+import { Download, Gamepad2, FileText, Brain, Lightbulb, Users, Calendar, Tag, Edit, Save, X, Trash2, AlertTriangle } from 'lucide-react';
 import { getSummary, updateSummary, deleteSummary, getUserSummaries } from '../utils/api';
 import type { Summary } from '../utils/api';
 
@@ -99,15 +99,15 @@ export function SummaryView({ onPageChange, isBackendReady }: SummaryViewProps) 
 
   const handleSave = async () => {
     if (!selectedNote) return;
-    
+
     try {
       setLoading(true);
       setError(null);
-      
+
       if (isBackendReady) {
         await updateSummary(selectedNote.id, editData);
       }
-      
+
       // Update local state
       setSelectedNote(prev => prev ? { ...prev, ...editData } : null);
       setEditing(false);
@@ -125,7 +125,7 @@ export function SummaryView({ onPageChange, isBackendReady }: SummaryViewProps) 
 
   const handleDelete = async () => {
     if (!selectedNote) return;
-    
+
     if (confirm('Are you sure you want to delete this summary?')) {
       try {
         setLoading(true);
@@ -145,7 +145,7 @@ export function SummaryView({ onPageChange, isBackendReady }: SummaryViewProps) 
   const handleExport = (format: string) => {
     // Simulate file download
     const element = document.createElement('a');
-    const file = new Blob([`Tate Studies Summary - ${selectedNote?.subject}\n\nGenerated on ${selectedNote?.processedAt}`], {type: 'text/plain'});
+    const file = new Blob([`Tate Studies Summary - ${selectedNote?.subject}\n\nGenerated on ${selectedNote?.processedAt}`], { type: 'text/plain' });
     element.href = URL.createObjectURL(file);
     element.download = `${selectedNote?.subject}_summary.${format.toLowerCase()}`;
     document.body.appendChild(element);
@@ -156,7 +156,7 @@ export function SummaryView({ onPageChange, isBackendReady }: SummaryViewProps) 
   const updateEditItem = (section: keyof typeof editData, index: number, field: 'term' | 'description', value: string) => {
     setEditData(prev => ({
       ...prev,
-      [section]: prev[section].map((item, i) => 
+      [section]: prev[section].map((item, i) =>
         i === index ? { ...item, [field]: value } : item
       )
     }));
@@ -287,9 +287,15 @@ Key Performance Indicators (KPIs) for strategic success include market share gro
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Brain className="h-4 w-4 text-[--neon-purple]" />
                 <span>Processed with AI intelligence</span>
+                {selectedNote.isFallback && (
+                  <Badge variant="outline" className="ml-2 border-yellow-500/50 text-yellow-500 bg-yellow-500/10 gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    Local Fallback
+                  </Badge>
+                )}
               </div>
             </div>
-            
+
             <div className="flex gap-2">
               {!editing ? (
                 <>

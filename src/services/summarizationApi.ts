@@ -1,7 +1,7 @@
 // src/services/summarizationApi.ts
 // Free text summarization using Hugging Face Inference API
 
-const HUGGINGFACE_API_URL = 'https://api-inference.huggingface.co/models/facebook/bart-large-cnn';
+const HUGGINGFACE_API_URL = '/api/hf/models/facebook/bart-large-cnn';
 // Get your token from environment variables (set in .env file)
 const HUGGINGFACE_TOKEN = import.meta.env.VITE_HUGGINGFACE_TOKEN || '';
 
@@ -10,18 +10,28 @@ interface SummaryData {
   keyDefinitions: Array<{ term: string; description: string }>;
   importantPoints: Array<{ term: string; description: string }>;
   studyTips: Array<{ term: string; description: string }>;
+  isFallback?: boolean;
+  error?: string;
+}
+
+interface SummarizationResult {
+  text: string;
+  isFallback: boolean;
+  error?: string;
 }
 
 class SummarizationService {
-  private async summarizeText(text: string): Promise<string> {
+  private async summarizeText(text: string): Promise<SummarizationResult> {
     try {
-      // Use Hugging Face's free inference API
+      // Use Hugging Face's free inference API via local proxy
       const response = await fetch(HUGGINGFACE_API_URL, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${HUGGINGFACE_TOKEN}`,
           'Content-Type': 'application/json',
         },
+        // Important: Disable caching to ensure fresh results
+        cache: 'no-store',
         body: JSON.stringify({
           inputs: text.substring(0, 1024), // Limit text length for free API
           parameters: {
@@ -37,11 +47,18 @@ class SummarizationService {
       }
 
       const result = await response.json();
-      return result[0]?.summary_text || text;
+      return {
+        text: result[0]?.summary_text || text,
+        isFallback: false
+      };
     } catch (error) {
       console.error('Summarization error:', error);
       // Fallback to extractive summarization
-      return this.extractiveSummary(text);
+      return {
+        text: this.extractiveSummary(text),
+        isFallback: true,
+        error: error instanceof Error ? error.message : 'Unknown API error'
+      };
     }
   }
 
@@ -55,7 +72,7 @@ class SummarizationService {
     // Extract potential key terms (capitalized words, repeated terms)
     const words = text.split(/\s+/);
     const termFreq: Record<string, number> = {};
-    
+
     words.forEach(word => {
       const cleaned = word.replace(/[^\w]/g, '').toLowerCase();
       if (cleaned.length > 4 && !this.isCommonWord(cleaned)) {
@@ -64,7 +81,7 @@ class SummarizationService {
     });
 
     return Object.entries(termFreq)
-      .sort(([,a], [,b]) => b - a)
+      .sort(([, a], [, b]) => b - a)
       .slice(0, 10)
       .map(([term]) => term);
   }
@@ -79,11 +96,12 @@ class SummarizationService {
       console.log('Processing text with free summarization API...');
 
       // Get AI summary
-      const summary = await this.summarizeText(text);
-      
+      const summaryResult = await this.summarizeText(text);
+      const summary = summaryResult.text;
+
       // Extract key terms
       const keyTerms = this.extractKeyTerms(text);
-      
+
       // Split text into sentences for analysis
       const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 10);
 
@@ -128,7 +146,9 @@ class SummarizationService {
         keyNames,
         keyDefinitions,
         importantPoints,
-        studyTips
+        studyTips,
+        isFallback: summaryResult.isFallback,
+        error: summaryResult.error
       };
     } catch (error) {
       console.error('Text processing error:', error);

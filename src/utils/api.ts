@@ -8,10 +8,10 @@ const USE_FREE_API = true; // Set to true to use free summarization
 export async function processContent(text: string, subject: string, fileId?: string) {
   try {
     console.log('Processing content with free API...');
-    
+
     // Use free summarization service
     const summaryData = await summarizationService.processText(text, subject);
-    
+
     // Store in local storage for now (or send to your backend)
     const summaryId = `summary_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const fullSummary = {
@@ -21,20 +21,22 @@ export async function processContent(text: string, subject: string, fileId?: str
       processedAt: new Date().toISOString(),
       ...summaryData
     };
-    
+
     // Store locally
     localStorage.setItem(summaryId, JSON.stringify(fullSummary));
-    
+
     // Add to user's summaries list
     const userSummaries = JSON.parse(localStorage.getItem('user_summaries') || '[]');
     userSummaries.push(summaryId);
     localStorage.setItem('user_summaries', JSON.stringify(userSummaries));
-    
+
     return {
       success: true,
       summaryId,
       summary: summaryData,
-      note: '✅ Processed with free AI summarization!'
+      note: summaryData.isFallback ? '⚠️ Processed with local fallback (AI Service Unavailable)' : '✅ Processed with free AI summarization!',
+      isFallback: summaryData.isFallback,
+      error: summaryData.error
     };
   } catch (error) {
     console.error('Processing error:', error);
@@ -61,7 +63,7 @@ export async function getUserSummaries(userId: string = 'default') {
     const data = localStorage.getItem(id);
     return data ? { key: id, value: JSON.parse(data) } : null;
   }).filter(Boolean);
-  
+
   return {
     success: true,
     summaries
@@ -74,15 +76,15 @@ export async function updateSummary(summaryId: string, updates: any) {
   if (!existing) {
     throw new Error('Summary not found');
   }
-  
+
   const updated = {
     ...JSON.parse(existing),
     ...updates,
     updatedAt: new Date().toISOString()
   };
-  
+
   localStorage.setItem(summaryId, JSON.stringify(updated));
-  
+
   return {
     success: true,
     summary: updated
@@ -92,11 +94,11 @@ export async function updateSummary(summaryId: string, updates: any) {
 // Delete summary
 export async function deleteSummary(summaryId: string) {
   localStorage.removeItem(summaryId);
-  
+
   const summaries = JSON.parse(localStorage.getItem('user_summaries') || '[]');
   const filtered = summaries.filter((id: string) => id !== summaryId);
   localStorage.setItem('user_summaries', JSON.stringify(filtered));
-  
+
   return {
     success: true,
     message: 'Summary deleted'
@@ -106,7 +108,7 @@ export async function deleteSummary(summaryId: string) {
 // File upload (store locally for now)
 export async function uploadFile(file: File, userId: string = 'default') {
   const fileId = `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  
+
   return {
     success: true,
     fileId,
@@ -118,7 +120,7 @@ export async function uploadFile(file: File, userId: string = 'default') {
 export async function extractTextFromFile(file: File): Promise<string> {
   const fileType = file.type.toLowerCase();
   const fileName = file.name.toLowerCase();
-  
+
   if (fileType.includes('text') || fileName.endsWith('.txt')) {
     return await file.text();
   } else if (fileType.includes('pdf')) {
@@ -127,7 +129,7 @@ export async function extractTextFromFile(file: File): Promise<string> {
     try {
       const text = await file.text();
       if (text && text.length > 10) return text;
-    } catch {}
+    } catch { }
     return `Word Document: ${file.name}\n\nThis document contains study material. The content will be processed to create summaries and study aids.`;
   } else {
     return `File: ${file.name}\n\nThis file contains educational content that will be analyzed and summarized for study purposes.`;
@@ -138,16 +140,16 @@ export async function extractTextFromFile(file: File): Promise<string> {
 export async function processFile(file: File, subject: string, userId: string = 'default') {
   try {
     console.log('Starting file processing...');
-    
+
     // Upload
     const uploadResult = await uploadFile(file, userId);
-    
+
     // Extract text
     const text = await extractTextFromFile(file);
-    
+
     // Process with AI
     const processResult = await processContent(text, subject, uploadResult.fileId);
-    
+
     return {
       ...processResult,
       fileId: uploadResult.fileId
@@ -161,7 +163,7 @@ export async function processFile(file: File, subject: string, userId: string = 
 // User progress
 export async function getUserProgress(userId: string = 'default') {
   const progress = localStorage.getItem(`progress_${userId}`);
-  
+
   if (!progress) {
     const defaultProgress = {
       userId,
@@ -173,7 +175,7 @@ export async function getUserProgress(userId: string = 'default') {
     localStorage.setItem(`progress_${userId}`, JSON.stringify(defaultProgress));
     return { success: true, progress: defaultProgress };
   }
-  
+
   return {
     success: true,
     progress: JSON.parse(progress)
@@ -188,9 +190,9 @@ export async function saveProgress(userId: string, xp: number, streak: number, a
     achievements,
     lastUpdated: new Date().toISOString()
   };
-  
+
   localStorage.setItem(`progress_${userId}`, JSON.stringify(progress));
-  
+
   return { success: true, progress };
 }
 
@@ -198,9 +200,9 @@ export async function saveProgress(userId: string, xp: number, streak: number, a
 export async function generateMultipleChoice(summaryId: string, numQuestions: number = 5) {
   const summary = await getSummary(summaryId);
   const summaryData = summary.summary;
-  
+
   const questions = [];
-  
+
   // Generate from key definitions
   if (summaryData.keyDefinitions && summaryData.keyDefinitions.length > 0) {
     summaryData.keyDefinitions.slice(0, numQuestions).forEach((def: any, i: number) => {
@@ -220,7 +222,7 @@ export async function generateMultipleChoice(summaryId: string, numQuestions: nu
       });
     });
   }
-  
+
   return {
     success: true,
     questions,
@@ -246,6 +248,7 @@ export interface Summary {
   keyDefinitions: Array<{ term: string; description: string }>;
   importantPoints: Array<{ term: string; description: string }>;
   studyTips: Array<{ term: string; description: string }>;
+  isFallback?: boolean;
 }
 
 export interface UserProgress {

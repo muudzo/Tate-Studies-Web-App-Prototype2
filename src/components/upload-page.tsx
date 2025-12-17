@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Progress } from './ui/progress';
@@ -38,7 +39,7 @@ export function UploadPage({ onPageChange, userProgress, updateUserProgress, isB
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
+
     const droppedFiles = Array.from(e.dataTransfer.files);
     handleFiles(droppedFiles);
   }, []);
@@ -112,9 +113,9 @@ export function UploadPage({ onPageChange, userProgress, updateUserProgress, isB
           await new Promise(resolve => setTimeout(resolve, 300));
           setUploadProgress(i);
         }
-        
+
         setFiles(prev => prev.map(file => ({ ...file, status: 'complete' })));
-        
+
         // Award XP for demo upload
         updateUserProgress({
           xp: userProgress.xp + 50,
@@ -135,7 +136,7 @@ export function UploadPage({ onPageChange, userProgress, updateUserProgress, isB
       for (const fileItem of files) {
         try {
           setProcessingStage(`Uploading ${fileItem.name}...`);
-          
+
           // Upload file
           const uploadResult = await uploadFile(fileItem.file, userProgress.userId);
           setUploadProgress((completedFiles / totalFiles) * 30); // Upload progress: 0-30%
@@ -150,8 +151,15 @@ export function UploadPage({ onPageChange, userProgress, updateUserProgress, isB
           const processResult = await processContent(textContent, selectedSubject, uploadResult.fileId);
           setUploadProgress((completedFiles / totalFiles) * 90); // AI processing: 60-90%
 
+          if (processResult.isFallback) {
+            toast.warning('Using Local Fallback', {
+              description: 'AI service unavailable. Generated a local summary instead.',
+              duration: 5000,
+            });
+          }
+
           // Mark file as complete
-          setFiles(prev => prev.map(f => 
+          setFiles(prev => prev.map(f =>
             f.id === fileItem.id ? { ...f, status: 'complete', summaryId: processResult.summaryId } : f
           ));
 
@@ -160,7 +168,7 @@ export function UploadPage({ onPageChange, userProgress, updateUserProgress, isB
 
         } catch (fileError) {
           console.error(`Error processing ${fileItem.name}:`, fileError);
-          setFiles(prev => prev.map(f => 
+          setFiles(prev => prev.map(f =>
             f.id === fileItem.id ? { ...f, status: 'error', error: fileError.message } : f
           ));
         }
@@ -174,7 +182,7 @@ export function UploadPage({ onPageChange, userProgress, updateUserProgress, isB
       });
 
       setProcessingStage('Processing complete!');
-      
+
       setTimeout(() => {
         setUploading(false);
         onPageChange('summaries');
@@ -240,7 +248,7 @@ export function UploadPage({ onPageChange, userProgress, updateUserProgress, isB
             <span className="text-sm">Demo Mode: AI processing will be simulated</span>
           </div>
         )}
-        
+
         {isBackendReady && (
           <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-green-600">
             <AlertCircle className="h-4 w-4" />
@@ -250,12 +258,11 @@ export function UploadPage({ onPageChange, userProgress, updateUserProgress, isB
       </div>
 
       {/* Upload Area */}
-      <Card 
-        className={`border-2 border-dashed transition-all duration-300 ${
-          dragActive 
-            ? 'border-[--neon-blue] bg-[--neon-blue]/5' 
+      <Card
+        className={`border-2 border-dashed transition-all duration-300 ${dragActive
+            ? 'border-[--neon-blue] bg-[--neon-blue]/5'
             : 'border-border hover:border-[--neon-blue]/50'
-        }`}
+          }`}
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
         onDragOver={handleDrag}
@@ -266,7 +273,7 @@ export function UploadPage({ onPageChange, userProgress, updateUserProgress, isB
             <div className="mx-auto w-20 h-20 bg-gradient-to-br from-[--neon-blue] to-[--neon-purple] rounded-full flex items-center justify-center animate-pulse-gentle">
               <Upload className="h-10 w-10 text-white" />
             </div>
-            
+
             <div className="space-y-2">
               <h3 className="text-xl font-semibold">Drop your files here</h3>
               <p className="text-muted-foreground">
@@ -290,7 +297,7 @@ export function UploadPage({ onPageChange, userProgress, updateUserProgress, isB
               <Upload className="h-5 w-5 mr-2" />
               Choose Files
             </Button>
-            
+
             <input
               id="file-input"
               type="file"
@@ -328,7 +335,7 @@ export function UploadPage({ onPageChange, userProgress, updateUserProgress, isB
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-2">
                     {file.status === 'complete' && (
                       <CheckCircle className="h-5 w-5 text-[--neon-green]" />
