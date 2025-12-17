@@ -27,7 +27,7 @@ async function initializeBuckets() {
   const bucketName = 'make-4e8803b0-study-files'
   const { data: buckets } = await supabase.storage.listBuckets()
   const bucketExists = buckets?.some(bucket => bucket.name === bucketName)
-  
+
   if (!bucketExists) {
     const { error } = await supabase.storage.createBucket(bucketName, { public: false })
     if (error) {
@@ -47,7 +47,7 @@ app.post('/make-server-4e8803b0/upload', async (c) => {
     const formData = await c.req.formData()
     const file = formData.get('file') as File
     const userId = formData.get('userId') as string
-    
+
     if (!file) {
       return c.json({ error: 'No file provided' }, 400)
     }
@@ -55,7 +55,7 @@ app.post('/make-server-4e8803b0/upload', async (c) => {
     // Generate unique filename
     const timestamp = Date.now()
     const filename = `${userId}/${timestamp}-${file.name}`
-    
+
     // Upload to Supabase Storage
     const { data, error } = await supabase.storage
       .from('make-4e8803b0-study-files')
@@ -101,14 +101,14 @@ app.post('/make-server-4e8803b0/process', async (c) => {
   try {
     const { fileId, text, subject } = await c.req.json()
     const openaiKey = Deno.env.get('OPENAI_API_KEY')
-    
+
     // Always use free processing for now (no OpenAI dependency)
     console.log('Using free local processing - no API costs!')
-    
+
     // Enhanced free processing with smart text analysis
     const words = text.toLowerCase().split(/\s+/);
     const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 10);
-    
+
     // Extract key terms using frequency analysis
     const wordFreq = {};
     words.forEach(word => {
@@ -116,41 +116,41 @@ app.post('/make-server-4e8803b0/process', async (c) => {
         wordFreq[word] = (wordFreq[word] || 0) + 1;
       }
     });
-    
+
     const keyTerms = Object.entries(wordFreq)
-      .sort(([,a], [,b]) => b - a)
+      .sort(([, a], [, b]) => b - a)
       .slice(0, 5)
       .map(([term, freq]) => ({ term, description: `Important concept mentioned ${freq} times` }));
-    
+
     // Smart content analysis
-    const keyNames = keyTerms.slice(0, 3).map(({term}) => ({
+    const keyNames = keyTerms.slice(0, 3).map(({ term }) => ({
       term: term.charAt(0).toUpperCase() + term.slice(1),
       description: `Key concept from your notes`
     }));
-    
+
     const keyDefinitions = sentences.slice(0, 3).map((sentence, i) => ({
       term: `Definition ${i + 1}`,
       description: sentence.trim()
     }));
-    
+
     const importantPoints = sentences.slice(3, 6).map((sentence, i) => ({
       term: `Key Point ${i + 1}`,
       description: sentence.trim()
     }));
-    
+
     const studyTips = [
       { term: "Review Strategy", description: "Read through your notes and identify the main themes" },
       { term: "Practice Recall", description: "Try to explain the concepts without looking at your notes" },
       { term: "Connect Ideas", description: "Look for relationships between different concepts in your material" }
     ];
-    
+
     const fallbackContent = {
       keyNames,
       keyDefinitions,
       importantPoints,
       studyTips
     }
-    
+
     // Store summary in database
     const summaryId = `summary_${Date.now()}`
     const summaryData = {
@@ -160,9 +160,9 @@ app.post('/make-server-4e8803b0/process', async (c) => {
       processedAt: new Date().toISOString(),
       ...fallbackContent
     }
-    
+
     await kv.set(summaryId, summaryData)
-    
+
     return c.json({
       success: true,
       summaryId,
@@ -181,7 +181,7 @@ app.get('/make-server-4e8803b0/summary/:id', async (c) => {
   try {
     const summaryId = c.req.param('id')
     const summary = await kv.get(summaryId)
-    
+
     if (!summary) {
       return c.json({ error: 'Summary not found' }, 404)
     }
@@ -198,9 +198,9 @@ app.get('/make-server-4e8803b0/summaries/:userId', async (c) => {
   try {
     const userId = c.req.param('userId')
     const summaries = await kv.getByPrefix('summary_')
-    
+
     // Filter summaries for this user and ensure they have proper structure
-    const userSummaries = summaries.filter(summary => 
+    const userSummaries = summaries.filter(summary =>
       summary && summary.id && summary.processedAt
     ).map(summary => ({
       key: summary.id,
@@ -219,7 +219,7 @@ app.post('/make-server-4e8803b0/flashcards', async (c) => {
   try {
     const { summaryId } = await c.req.json()
     const summary = await kv.get(summaryId)
-    
+
     if (!summary) {
       return c.json({ error: 'Summary not found' }, 404)
     }
@@ -279,7 +279,7 @@ app.get('/make-server-4e8803b0/flashcards/:setId', async (c) => {
   try {
     const setId = c.req.param('setId')
     const flashcardSet = await kv.get(setId)
-    
+
     if (!flashcardSet) {
       return c.json({ error: 'Flashcard set not found' }, 404)
     }
@@ -295,7 +295,7 @@ app.get('/make-server-4e8803b0/flashcards/:setId', async (c) => {
 app.post('/make-server-4e8803b0/progress', async (c) => {
   try {
     const { userId, xp, streak, achievements } = await c.req.json()
-    
+
     const progressData = {
       userId,
       xp: xp || 0,
@@ -318,7 +318,7 @@ app.get('/make-server-4e8803b0/progress/:userId', async (c) => {
   try {
     const userId = c.req.param('userId')
     const progress = await kv.get(`progress_${userId}`)
-    
+
     if (!progress) {
       // Return default progress for new users
       return c.json({
@@ -345,13 +345,13 @@ app.put('/make-server-4e8803b0/summary/:id', async (c) => {
   try {
     const summaryId = c.req.param('id')
     const { keyNames, keyDefinitions, importantPoints, studyTips } = await c.req.json()
-    
+
     // Get existing summary
     const existingSummary = await kv.get(summaryId)
     if (!existingSummary) {
       return c.json({ error: 'Summary not found' }, 404)
     }
-    
+
     // Update summary data
     const updatedSummary = {
       ...existingSummary,
@@ -361,9 +361,9 @@ app.put('/make-server-4e8803b0/summary/:id', async (c) => {
       studyTips: studyTips || existingSummary.studyTips,
       updatedAt: new Date().toISOString()
     }
-    
+
     await kv.set(summaryId, updatedSummary)
-    
+
     return c.json({ success: true, summary: updatedSummary })
   } catch (error) {
     console.log('Update summary error:', error)
@@ -375,16 +375,16 @@ app.put('/make-server-4e8803b0/summary/:id', async (c) => {
 app.delete('/make-server-4e8803b0/summary/:id', async (c) => {
   try {
     const summaryId = c.req.param('id')
-    
+
     // Check if summary exists
     const summary = await kv.get(summaryId)
     if (!summary) {
       return c.json({ error: 'Summary not found' }, 404)
     }
-    
+
     // Delete summary
     await kv.del(summaryId)
-    
+
     return c.json({ success: true, message: 'Summary deleted successfully' })
   } catch (error) {
     console.log('Delete summary error:', error)
@@ -397,21 +397,23 @@ app.post('/make-server-4e8803b0/multiple-choice', async (c) => {
   try {
     const { summaryId, numQuestions = 5 } = await c.req.json()
     const summary = await kv.get(summaryId)
-    
+
     if (!summary) {
       return c.json({ error: 'Summary not found' }, 404)
     }
 
     // Always use free question generation (no OpenAI dependency)
     console.log('Using free question generation - no API costs!')
-      
+
+    if (true) {
+
       // Enhanced free question generation based on content
       const content = summary.keyDefinitions || [];
       const points = summary.importantPoints || [];
-      
+
       // Generate questions from actual content
       const fallbackQuestions = [];
-      
+
       // Question 1: Based on key definitions
       if (content.length > 0) {
         fallbackQuestions.push({
@@ -429,7 +431,7 @@ app.post('/make-server-4e8803b0/multiple-choice', async (c) => {
           category: 'Key Definitions'
         });
       }
-      
+
       // Question 2: Based on important points
       if (points.length > 0) {
         fallbackQuestions.push({
@@ -447,7 +449,7 @@ app.post('/make-server-4e8803b0/multiple-choice', async (c) => {
           category: 'Important Points'
         });
       }
-      
+
       // Question 3: General knowledge question
       fallbackQuestions.push({
         id: 'q3',
@@ -463,7 +465,7 @@ app.post('/make-server-4e8803b0/multiple-choice', async (c) => {
         difficulty: 'easy',
         category: 'Study Strategy'
       });
-      
+
       // Add more questions if we have more content
       if (content.length > 1) {
         fallbackQuestions.push({
@@ -481,7 +483,7 @@ app.post('/make-server-4e8803b0/multiple-choice', async (c) => {
           category: 'Content Analysis'
         });
       }
-      
+
       // Store questions
       const questionSetId = `questions_${summaryId}_${Date.now()}`
       await kv.set(questionSetId, {
@@ -490,7 +492,7 @@ app.post('/make-server-4e8803b0/multiple-choice', async (c) => {
         questions: fallbackQuestions,
         createdAt: new Date().toISOString()
       })
-      
+
       return c.json({
         success: true,
         questionSetId,
@@ -598,7 +600,7 @@ app.get('/make-server-4e8803b0/multiple-choice/:setId', async (c) => {
   try {
     const setId = c.req.param('setId')
     const questionSet = await kv.get(setId)
-    
+
     if (!questionSet) {
       return c.json({ error: 'Question set not found' }, 404)
     }
