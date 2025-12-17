@@ -1,5 +1,5 @@
 // src/utils/api.ts - Updated with free summarization
-import summarizationService from '../services/summarizationApi';
+import geminiService from '../services/geminiApi';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const USE_FREE_API = true; // Set to true to use free summarization
@@ -9,8 +9,8 @@ export async function processContent(text: string, subject: string, fileId?: str
   try {
     console.log('Processing content with free API...');
 
-    // Use free summarization service
-    const summaryData = await summarizationService.processText(text, subject);
+    // Use Gemini service
+    const summaryData = await geminiService.processText(text, subject);
 
     // Store in local storage for now (or send to your backend)
     const summaryId = `summary_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
