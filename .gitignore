@@ -10,3 +10,4 @@
 test-*.js
 *openai*
 dist/
+node_modules/
