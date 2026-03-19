@@ -3,7 +3,7 @@ import { Switch } from './ui/switch';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
-import { Bell, Download, Trash2, User, Zap, Brain, Palette, Shield } from 'lucide-react';
+import { Bell, Download, Trash2, User, Brain, Palette, Shield } from 'lucide-react';
 
 interface SettingsProps {
   isDarkMode: boolean;

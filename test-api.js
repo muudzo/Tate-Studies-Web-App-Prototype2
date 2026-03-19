@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 
-const API_BASE_URL = 'https://pbfgnkoeuygcdybuefkp.supabase.co/functions/v1/make-server-4e8803b0';
-const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBiZmdua29ldXlnY2R5YnVlZmtwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5NzgxNzYsImV4cCI6MjA3NDU1NDE3Nn0.odfalR1k5UCb6Qjek9hK34OtqYyjMPSsHDdBZMi6JZQ';
+const API_BASE_URL = process.env.API_BASE_URL || 'https://pbfgnkoeuygcdybuefkp.supabase.co/functions/v1/make-server-4e8803b0';
+const AUTH_TOKEN = process.env.SUPABASE_ANON_KEY || '';
+
+if (!AUTH_TOKEN) {
+  console.error('Error: SUPABASE_ANON_KEY environment variable is not set.');
+  process.exit(1);
+}
 
 async function testAPI() {
-  console.log('🧪 Testing Tate Studies API Endpoints...\n');
+  console.log('Testing Tate Studies API Endpoints...\n');
 
   // Test 1: Health Check
   console.log('1. Testing Health Check...');
@@ -13,9 +18,9 @@ async function testAPI() {
       headers: { 'Authorization': `Bearer ${AUTH_TOKEN}` }
     });
     const data = await response.json();
-    console.log('✅ Health Check:', data);
+    console.log('Health Check:', data);
   } catch (error) {
-    console.log('❌ Health Check Failed:', error.message);
+    console.error('Health Check Failed:', error.message);
   }
 
   // Test 2: File Upload
@@ -33,8 +38,8 @@ async function testAPI() {
       body: formData
     });
     const data = await response.json();
-    console.log('✅ File Upload:', data);
-    
+    console.log('File Upload:', data);
+
     if (data.success) {
       // Test 3: AI Processing
       console.log('\n3. Testing AI Processing...');
@@ -53,7 +58,7 @@ async function testAPI() {
         });
         const processData = await processResponse.json();
         console.log('AI Processing Result:', processData);
-        
+
         if (processData.success) {
           // Test 4: Get Summaries
           console.log('\n4. Testing Get Summaries...');
@@ -62,20 +67,20 @@ async function testAPI() {
               headers: { 'Authorization': `Bearer ${AUTH_TOKEN}` }
             });
             const summariesData = await summariesResponse.json();
-            console.log('✅ Get Summaries:', summariesData);
+            console.log('Get Summaries:', summariesData);
           } catch (error) {
-            console.log('❌ Get Summaries Failed:', error.message);
+            console.error('Get Summaries Failed:', error.message);
           }
         } else {
-          console.log('❌ AI Processing Failed:', processData.error);
-          console.log('💡 This is likely because OpenAI API key is not configured in Supabase Edge Functions');
+          console.error('AI Processing Failed:', processData.error);
+          console.log('This is likely because OpenAI API key is not configured in Supabase Edge Functions');
         }
       } catch (error) {
-        console.log('❌ AI Processing Error:', error.message);
+        console.error('AI Processing Error:', error.message);
       }
     }
   } catch (error) {
-    console.log('❌ File Upload Failed:', error.message);
+    console.error('File Upload Failed:', error.message);
   }
 
   // Test 5: Multiple Choice Generation (if AI works)
@@ -95,15 +100,15 @@ async function testAPI() {
     const mcData = await mcResponse.json();
     console.log('Multiple Choice Result:', mcData);
   } catch (error) {
-    console.log('❌ Multiple Choice Failed:', error.message);
+    console.error('Multiple Choice Failed:', error.message);
   }
 
-  console.log('\n🏁 API Testing Complete!');
-  console.log('\n📋 Summary:');
-  console.log('- File upload: ✅ Working');
-  console.log('- AI processing: ❌ Needs OpenAI API key configuration');
-  console.log('- Multiple choice: ❌ Depends on AI processing');
-  console.log('\n🔧 To fix: Configure OPENAI_API_KEY in Supabase Edge Functions environment variables');
+  console.log('\nAPI Testing Complete!');
+  console.log('\nSummary:');
+  console.log('- File upload: Working');
+  console.log('- AI processing: Needs OpenAI API key configuration');
+  console.log('- Multiple choice: Depends on AI processing');
+  console.log('\nTo fix: Configure OPENAI_API_KEY in Supabase Edge Functions environment variables');
 }
 
 testAPI().catch(console.error);

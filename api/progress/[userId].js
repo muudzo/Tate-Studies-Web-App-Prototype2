@@ -1,10 +1,15 @@
 // Vercel API route for getting user progress
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': process.env.ALLOWED_ORIGIN || '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Accept, Origin',
+};
+
 export default async function handler(req, res) {
   // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-  
+  Object.entries(corsHeaders).forEach(([key, value]) => res.setHeader(key, value));
+
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
@@ -16,10 +21,10 @@ export default async function handler(req, res) {
 
   try {
     const { userId } = req.query;
-    
+
     // Return default progress data
-    return res.status(200).json({ 
-      success: true, 
+    return res.status(200).json({
+      success: true,
       progress: {
         xp: 0,
         level: 1,
@@ -28,7 +33,7 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.log('Get progress error:', error);
+    console.error('Get progress error:', error);
     return res.status(500).json({ error: 'Failed to retrieve progress' });
   }
 }

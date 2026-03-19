@@ -9,7 +9,7 @@ const app = new Hono()
 
 // Enable CORS and logging
 app.use('*', cors({
-  origin: '*',
+  origin: Deno.env.get('ALLOWED_ORIGIN') || '*',
   allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   allowMethods: ['POST', 'GET', 'OPTIONS', 'PUT', 'DELETE'],
 }))
@@ -22,6 +22,11 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 )
 
+// Sanitize filename to prevent path traversal
+function sanitizeFilename(name: string): string {
+  return name.replace(/\.\.\//g, '').replace(/\.\.\\/g, '').replace(/[\/\\]/g, '_').replace(/\0/g, '');
+}
+
 // Create storage bucket for uploaded files
 async function initializeBuckets() {
   const bucketName = 'make-4e8803b0-study-files'
@@ -31,7 +36,7 @@ async function initializeBuckets() {
   if (!bucketExists) {
     const { error } = await supabase.storage.createBucket(bucketName, { public: false })
     if (error) {
-      console.log('Error creating bucket:', error)
+      console.error('Error creating bucket:', error)
     } else {
       console.log('Study files bucket created successfully')
     }
@@ -52,9 +57,10 @@ app.post('/make-server-4e8803b0/upload', async (c) => {
       return c.json({ error: 'No file provided' }, 400)
     }
 
-    // Generate unique filename
+    // Generate unique filename with sanitized file name
     const timestamp = Date.now()
-    const filename = `${userId}/${timestamp}-${file.name}`
+    const safeName = sanitizeFilename(file.name)
+    const filename = `${userId}/${timestamp}-${safeName}`
 
     // Upload to Supabase Storage
     const { data, error } = await supabase.storage
@@ -62,7 +68,7 @@ app.post('/make-server-4e8803b0/upload', async (c) => {
       .upload(filename, file)
 
     if (error) {
-      console.log('Upload error:', error)
+      console.error('Upload error:', error)
       return c.json({ error: 'Failed to upload file' }, 500)
     }
 
@@ -91,16 +97,15 @@ app.post('/make-server-4e8803b0/upload', async (c) => {
     })
 
   } catch (error) {
-    console.log('Upload endpoint error:', error)
+    console.error('Upload endpoint error:', error)
     return c.json({ error: 'Server error during file upload' }, 500)
   }
 })
 
-// Process file with OpenAI
+// Process file with free local analysis
 app.post('/make-server-4e8803b0/process', async (c) => {
   try {
     const { fileId, text, subject } = await c.req.json()
-    const openaiKey = Deno.env.get('OPENAI_API_KEY')
 
     // Always use free processing for now (no OpenAI dependency)
     console.log('Using free local processing - no API costs!')
@@ -171,7 +176,7 @@ app.post('/make-server-4e8803b0/process', async (c) => {
     })
 
   } catch (error) {
-    console.log('Process endpoint error:', error)
+    console.error('Process endpoint error:', error)
     return c.json({ error: 'Server error during content processing' }, 500)
   }
 })
@@ -188,7 +193,7 @@ app.get('/make-server-4e8803b0/summary/:id', async (c) => {
 
     return c.json({ success: true, summary })
   } catch (error) {
-    console.log('Get summary error:', error)
+    console.error('Get summary error:', error)
     return c.json({ error: 'Failed to retrieve summary' }, 500)
   }
 })
@@ -209,7 +214,7 @@ app.get('/make-server-4e8803b0/summaries/:userId', async (c) => {
 
     return c.json({ success: true, summaries: userSummaries })
   } catch (error) {
-    console.log('Get user summaries error:', error)
+    console.error('Get user summaries error:', error)
     return c.json({ error: 'Failed to retrieve summaries' }, 500)
   }
 })
@@ -269,7 +274,7 @@ app.post('/make-server-4e8803b0/flashcards', async (c) => {
     })
 
   } catch (error) {
-    console.log('Generate flashcards error:', error)
+    console.error('Generate flashcards error:', error)
     return c.json({ error: 'Failed to generate flashcards' }, 500)
   }
 })
@@ -286,7 +291,7 @@ app.get('/make-server-4e8803b0/flashcards/:setId', async (c) => {
 
     return c.json({ success: true, flashcards: flashcardSet.cards })
   } catch (error) {
-    console.log('Get flashcards error:', error)
+    console.error('Get flashcards error:', error)
     return c.json({ error: 'Failed to retrieve flashcards' }, 500)
   }
 })
@@ -308,7 +313,7 @@ app.post('/make-server-4e8803b0/progress', async (c) => {
 
     return c.json({ success: true, progress: progressData })
   } catch (error) {
-    console.log('Save progress error:', error)
+    console.error('Save progress error:', error)
     return c.json({ error: 'Failed to save progress' }, 500)
   }
 })
@@ -335,7 +340,7 @@ app.get('/make-server-4e8803b0/progress/:userId', async (c) => {
 
     return c.json({ success: true, progress })
   } catch (error) {
-    console.log('Get progress error:', error)
+    console.error('Get progress error:', error)
     return c.json({ error: 'Failed to retrieve progress' }, 500)
   }
 })
@@ -366,7 +371,7 @@ app.put('/make-server-4e8803b0/summary/:id', async (c) => {
 
     return c.json({ success: true, summary: updatedSummary })
   } catch (error) {
-    console.log('Update summary error:', error)
+    console.error('Update summary error:', error)
     return c.json({ error: 'Failed to update summary' }, 500)
   }
 })
@@ -387,7 +392,7 @@ app.delete('/make-server-4e8803b0/summary/:id', async (c) => {
 
     return c.json({ success: true, message: 'Summary deleted successfully' })
   } catch (error) {
-    console.log('Delete summary error:', error)
+    console.error('Delete summary error:', error)
     return c.json({ error: 'Failed to delete summary' }, 500)
   }
 })
@@ -405,173 +410,81 @@ app.post('/make-server-4e8803b0/multiple-choice', async (c) => {
     // Always use free question generation (no OpenAI dependency)
     console.log('Using free question generation - no API costs!')
 
-    if (true) {
+    // Enhanced free question generation based on content
+    const content = summary.keyDefinitions || [];
+    const points = summary.importantPoints || [];
 
-      // Enhanced free question generation based on content
-      const content = summary.keyDefinitions || [];
-      const points = summary.importantPoints || [];
+    // Generate questions from actual content
+    const fallbackQuestions = [];
 
-      // Generate questions from actual content
-      const fallbackQuestions = [];
-
-      // Question 1: Based on key definitions
-      if (content.length > 0) {
-        fallbackQuestions.push({
-          id: 'q1',
-          question: `What is the main focus of ${content[0]?.term || 'the key concept'}?`,
-          options: {
-            A: content[0]?.description?.substring(0, 50) + '...' || 'Option A',
-            B: 'A different approach to the concept',
-            C: 'The opposite of the concept',
-            D: 'An unrelated business strategy'
-          },
-          correct: 'A',
-          explanation: content[0]?.description || 'This is the correct definition from your notes.',
-          difficulty: 'easy',
-          category: 'Key Definitions'
-        });
-      }
-
-      // Question 2: Based on important points
-      if (points.length > 0) {
-        fallbackQuestions.push({
-          id: 'q2',
-          question: `Which statement best describes the key point about ${points[0]?.term || 'the main concept'}?`,
-          options: {
-            A: points[0]?.description?.substring(0, 60) + '...' || 'Option A',
-            B: 'A contrasting viewpoint',
-            C: 'An outdated perspective',
-            D: 'An unrelated concept'
-          },
-          correct: 'A',
-          explanation: points[0]?.description || 'This matches the key point from your study material.',
-          difficulty: 'medium',
-          category: 'Important Points'
-        });
-      }
-
-      // Question 3: General knowledge question
+    // Question 1: Based on key definitions
+    if (content.length > 0) {
       fallbackQuestions.push({
-        id: 'q3',
-        question: 'What is the best way to study this material effectively?',
+        id: 'q1',
+        question: `What is the main focus of ${content[0]?.term || 'the key concept'}?`,
         options: {
-          A: 'Read through once and move on',
-          B: 'Review multiple times and practice recall',
-          C: 'Memorize everything word for word',
-          D: 'Skip the difficult parts'
+          A: content[0]?.description?.substring(0, 50) + '...' || 'Option A',
+          B: 'A different approach to the concept',
+          C: 'The opposite of the concept',
+          D: 'An unrelated business strategy'
         },
-        correct: 'B',
-        explanation: 'Effective studying involves multiple reviews and active recall practice to reinforce learning.',
+        correct: 'A',
+        explanation: content[0]?.description || 'This is the correct definition from your notes.',
         difficulty: 'easy',
-        category: 'Study Strategy'
+        category: 'Key Definitions'
       });
-
-      // Add more questions if we have more content
-      if (content.length > 1) {
-        fallbackQuestions.push({
-          id: 'q4',
-          question: `Which of the following relates to ${content[1]?.term || 'the second concept'}?`,
-          options: {
-            A: content[1]?.description?.substring(0, 50) + '...' || 'Option A',
-            B: 'A completely different concept',
-            C: 'An outdated definition',
-            D: 'An unrelated topic'
-          },
-          correct: 'A',
-          explanation: content[1]?.description || 'This is the correct information from your notes.',
-          difficulty: 'medium',
-          category: 'Content Analysis'
-        });
-      }
-
-      // Store questions
-      const questionSetId = `questions_${summaryId}_${Date.now()}`
-      await kv.set(questionSetId, {
-        id: questionSetId,
-        summaryId,
-        questions: fallbackQuestions,
-        createdAt: new Date().toISOString()
-      })
-
-      return c.json({
-        success: true,
-        questionSetId,
-        questions: fallbackQuestions,
-        note: 'Generated free questions from your content - no API costs!'
-      })
     }
 
-    // Create prompt for multiple choice questions
-    const prompt = `Based on the following study material, generate ${numQuestions} multiple choice questions that test understanding and application of the concepts.
+    // Question 2: Based on important points
+    if (points.length > 0) {
+      fallbackQuestions.push({
+        id: 'q2',
+        question: `Which statement best describes the key point about ${points[0]?.term || 'the main concept'}?`,
+        options: {
+          A: points[0]?.description?.substring(0, 60) + '...' || 'Option A',
+          B: 'A contrasting viewpoint',
+          C: 'An outdated perspective',
+          D: 'An unrelated concept'
+        },
+        correct: 'A',
+        explanation: points[0]?.description || 'This matches the key point from your study material.',
+        difficulty: 'medium',
+        category: 'Important Points'
+      });
+    }
 
-Study Material:
-Subject: ${summary.subject}
-Key Definitions: ${JSON.stringify(summary.keyDefinitions)}
-Important Points: ${JSON.stringify(summary.importantPoints)}
-Key Names: ${JSON.stringify(summary.keyNames)}
-
-Generate questions that:
-1. Test conceptual understanding, not just memorization
-2. Include application scenarios where possible
-3. Have 4 answer choices each (A, B, C, D)
-4. Include one correct answer and three plausible distractors
-5. Cover different difficulty levels (easy, medium, hard)
-
-Format your response as JSON with this structure:
-{
-  "questions": [
-    {
-      "id": "q1",
-      "question": "Question text here?",
-      "options": {
-        "A": "Option A",
-        "B": "Option B", 
-        "C": "Option C",
-        "D": "Option D"
+    // Question 3: General knowledge question
+    fallbackQuestions.push({
+      id: 'q3',
+      question: 'What is the best way to study this material effectively?',
+      options: {
+        A: 'Read through once and move on',
+        B: 'Review multiple times and practice recall',
+        C: 'Memorize everything word for word',
+        D: 'Skip the difficult parts'
       },
-      "correct": "A",
-      "explanation": "Why this answer is correct",
-      "difficulty": "medium",
-      "category": "Key concept category"
-    }
-  ]
-}`
+      correct: 'B',
+      explanation: 'Effective studying involves multiple reviews and active recall practice to reinforce learning.',
+      difficulty: 'easy',
+      category: 'Study Strategy'
+    });
 
-    // Call OpenAI API
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7,
-        max_tokens: 3000
-      })
-    })
-
-    if (!response.ok) {
-      const errorData = await response.text()
-      console.log('OpenAI API error:', errorData)
-      return c.json({ error: 'Failed to generate questions' }, 500)
-    }
-
-    const aiResponse = await response.json()
-    const content = aiResponse.choices[0]?.message?.content
-
-    if (!content) {
-      return c.json({ error: 'No content returned from AI' }, 500)
-    }
-
-    // Parse AI response
-    let questions
-    try {
-      questions = JSON.parse(content)
-    } catch (parseError) {
-      console.log('Failed to parse AI response:', content)
-      return c.json({ error: 'Failed to parse AI response' }, 500)
+    // Add more questions if we have more content
+    if (content.length > 1) {
+      fallbackQuestions.push({
+        id: 'q4',
+        question: `Which of the following relates to ${content[1]?.term || 'the second concept'}?`,
+        options: {
+          A: content[1]?.description?.substring(0, 50) + '...' || 'Option A',
+          B: 'A completely different concept',
+          C: 'An outdated definition',
+          D: 'An unrelated topic'
+        },
+        correct: 'A',
+        explanation: content[1]?.description || 'This is the correct information from your notes.',
+        difficulty: 'medium',
+        category: 'Content Analysis'
+      });
     }
 
     // Store questions
@@ -579,18 +492,19 @@ Format your response as JSON with this structure:
     await kv.set(questionSetId, {
       id: questionSetId,
       summaryId,
-      questions: questions.questions,
+      questions: fallbackQuestions,
       createdAt: new Date().toISOString()
     })
 
     return c.json({
       success: true,
       questionSetId,
-      questions: questions.questions
+      questions: fallbackQuestions,
+      note: 'Generated free questions from your content - no API costs!'
     })
 
   } catch (error) {
-    console.log('Multiple choice generation error:', error)
+    console.error('Multiple choice generation error:', error)
     return c.json({ error: 'Failed to generate multiple choice questions' }, 500)
   }
 })
@@ -607,7 +521,7 @@ app.get('/make-server-4e8803b0/multiple-choice/:setId', async (c) => {
 
     return c.json({ success: true, questions: questionSet.questions })
   } catch (error) {
-    console.log('Get questions error:', error)
+    console.error('Get questions error:', error)
     return c.json({ error: 'Failed to retrieve questions' }, 500)
   }
 })
