@@ -1,8 +1,14 @@
 // src/utils/api.ts - Updated with free summarization
 import geminiService from '../services/geminiApi';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-const USE_FREE_API = true; // Set to true to use free summarization
+// Safe JSON.parse wrapper
+function safeJsonParse<T>(json: string, fallback: T): T {
+  try {
+    return JSON.parse(json);
+  } catch {
+    return fallback;
+  }
+}
 
 // Process content with free AI summarization
 export async function processContent(text: string, subject: string, fileId?: string) {
@@ -13,7 +19,7 @@ export async function processContent(text: string, subject: string, fileId?: str
     const summaryData = await geminiService.processText(text, subject);
 
     // Store in local storage for now (or send to your backend)
-    const summaryId = `summary_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const summaryId = `summary_${Date.now()}_${crypto.randomUUID()}`;
     const fullSummary = {
       id: summaryId,
       fileId,
@@ -26,7 +32,7 @@ export async function processContent(text: string, subject: string, fileId?: str
     localStorage.setItem(summaryId, JSON.stringify(fullSummary));
 
     // Add to user's summaries list
-    const userSummaries = JSON.parse(localStorage.getItem('user_summaries') || '[]');
+    const userSummaries = safeJsonParse<string[]>(localStorage.getItem('user_summaries') || '[]', []);
     userSummaries.push(summaryId);
     localStorage.setItem('user_summaries', JSON.stringify(userSummaries));
 
@@ -52,16 +58,16 @@ export async function getSummary(summaryId: string) {
   }
   return {
     success: true,
-    summary: JSON.parse(summary)
+    summary: safeJsonParse(summary, null)
   };
 }
 
 // Get user summaries
-export async function getUserSummaries(userId: string = 'default') {
-  const summaryIds = JSON.parse(localStorage.getItem('user_summaries') || '[]');
+export async function getUserSummaries(_userId: string = 'default') {
+  const summaryIds = safeJsonParse<string[]>(localStorage.getItem('user_summaries') || '[]', []);
   const summaries = summaryIds.map((id: string) => {
     const data = localStorage.getItem(id);
-    return data ? { key: id, value: JSON.parse(data) } : null;
+    return data ? { key: id, value: safeJsonParse(data, null) } : null;
   }).filter(Boolean);
 
   return {
@@ -77,8 +83,10 @@ export async function updateSummary(summaryId: string, updates: any) {
     throw new Error('Summary not found');
   }
 
+  const parsed = safeJsonParse<Record<string, unknown>>(existing, {});
+
   const updated = {
-    ...JSON.parse(existing),
+    ...parsed,
     ...updates,
     updatedAt: new Date().toISOString()
   };
@@ -95,7 +103,7 @@ export async function updateSummary(summaryId: string, updates: any) {
 export async function deleteSummary(summaryId: string) {
   localStorage.removeItem(summaryId);
 
-  const summaries = JSON.parse(localStorage.getItem('user_summaries') || '[]');
+  const summaries = safeJsonParse<string[]>(localStorage.getItem('user_summaries') || '[]', []);
   const filtered = summaries.filter((id: string) => id !== summaryId);
   localStorage.setItem('user_summaries', JSON.stringify(filtered));
 
@@ -106,8 +114,8 @@ export async function deleteSummary(summaryId: string) {
 }
 
 // File upload (store locally for now)
-export async function uploadFile(file: File, userId: string = 'default') {
-  const fileId = `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+export async function uploadFile(_file: File, _userId: string = 'default') {
+  const fileId = `file_${Date.now()}_${crypto.randomUUID()}`;
 
   return {
     success: true,
@@ -178,7 +186,13 @@ export async function getUserProgress(userId: string = 'default') {
 
   return {
     success: true,
-    progress: JSON.parse(progress)
+    progress: safeJsonParse(progress, {
+      userId,
+      xp: 0,
+      streak: 0,
+      achievements: [],
+      lastUpdated: new Date().toISOString()
+    })
   };
 }
 
@@ -199,12 +213,12 @@ export async function saveProgress(userId: string, xp: number, streak: number, a
 // Multiple choice generation
 export async function generateMultipleChoice(summaryId: string, numQuestions: number = 5) {
   const summary = await getSummary(summaryId);
-  const summaryData = summary.summary;
+  const summaryData = summary.summary as Summary | null;
 
-  const questions = [];
+  const questions: MultipleChoiceQuestion[] = [];
 
   // Generate from key definitions
-  if (summaryData.keyDefinitions && summaryData.keyDefinitions.length > 0) {
+  if (summaryData && summaryData.keyDefinitions && summaryData.keyDefinitions.length > 0) {
     summaryData.keyDefinitions.slice(0, numQuestions).forEach((def: any, i: number) => {
       questions.push({
         id: `q${i + 1}`,
@@ -218,7 +232,7 @@ export async function generateMultipleChoice(summaryId: string, numQuestions: nu
         correct: 'A',
         explanation: def.description,
         difficulty: 'medium',
-        category: summaryData.subject || 'Study Material'
+        category: (summaryData && summaryData.subject) || 'Study Material'
       });
     });
   }

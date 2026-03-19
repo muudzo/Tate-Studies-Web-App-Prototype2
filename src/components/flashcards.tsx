@@ -1,14 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Label } from './ui/label';
-import { Separator } from './ui/separator';
 import { ChevronLeft, ChevronRight, RotateCcw, Zap, Trophy, Flame, Home, Brain, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
-import { generateMultipleChoice, getMultipleChoiceQuestions } from '../utils/api';
-import type { MultipleChoiceQuestion, QuestionSet } from '../utils/api';
+import { generateMultipleChoice } from '../utils/api';
+import type { MultipleChoiceQuestion } from '../utils/api';
 
 interface FlashcardsProps {
   onPageChange: (page: string) => void;
@@ -21,7 +20,7 @@ export function Flashcards({ onPageChange, isBackendReady }: FlashcardsProps) {
   const [studyMode, setStudyMode] = useState<StudyMode>('flashcards');
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
-  const [studyStreak, setStudyStreak] = useState(7);
+  const [studyStreak] = useState(7);
   const [xpGained, setXpGained] = useState(0);
   const [showConfetti, setShowConfetti] = useState(false);
   
@@ -33,7 +32,17 @@ export function Flashcards({ onPageChange, isBackendReady }: FlashcardsProps) {
   const [score, setScore] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+  const confettiTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup confetti timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (confettiTimeoutRef.current) {
+        clearTimeout(confettiTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const flashcards = [
     {
       id: 1,
@@ -165,7 +174,8 @@ export function Flashcards({ onPageChange, isBackendReady }: FlashcardsProps) {
     } else {
       setXpGained(prev => prev + 50);
       setShowConfetti(true);
-      setTimeout(() => setShowConfetti(false), 2000);
+      if (confettiTimeoutRef.current) clearTimeout(confettiTimeoutRef.current);
+      confettiTimeoutRef.current = setTimeout(() => setShowConfetti(false), 2000);
     }
   };
 
@@ -188,7 +198,8 @@ export function Flashcards({ onPageChange, isBackendReady }: FlashcardsProps) {
     } else {
       setXpGained(prev => prev + (score * 20));
       setShowConfetti(true);
-      setTimeout(() => setShowConfetti(false), 2000);
+      if (confettiTimeoutRef.current) clearTimeout(confettiTimeoutRef.current);
+      confettiTimeoutRef.current = setTimeout(() => setShowConfetti(false), 2000);
     }
   };
 
@@ -260,10 +271,10 @@ export function Flashcards({ onPageChange, isBackendReady }: FlashcardsProps) {
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
-      case 'easy': return 'text-green-500 bg-green-50 border-green-200';
-      case 'medium': return 'text-yellow-500 bg-yellow-50 border-yellow-200';
-      case 'hard': return 'text-red-500 bg-red-50 border-red-200';
-      default: return 'text-gray-500 bg-gray-50 border-gray-200';
+      case 'easy': return 'text-green-500 bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-700';
+      case 'medium': return 'text-yellow-500 bg-yellow-50 dark:bg-yellow-950 border-yellow-200 dark:border-yellow-700';
+      case 'hard': return 'text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-700';
+      default: return 'text-gray-500 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700';
     }
   };
 
@@ -276,7 +287,7 @@ export function Flashcards({ onPageChange, isBackendReady }: FlashcardsProps) {
           <p className="text-xl text-muted-foreground">Choose your preferred study method</p>
         </div>
         
-        <div className="flex items-center gap-6">
+        <div className="flex flex-wrap items-center gap-6">
           <div className="flex items-center gap-2 bg-gradient-to-r from-[--neon-green]/20 to-[--neon-blue]/20 px-4 py-2 rounded-full">
             <Flame className="h-5 w-5 text-[--neon-green]" />
             <span className="font-semibold">{studyStreak} day streak</span>
@@ -346,7 +357,15 @@ export function Flashcards({ onPageChange, isBackendReady }: FlashcardsProps) {
         /* Flashcard Mode */
         <div className="flex justify-center">
           <div className="relative w-full max-w-2xl">
-            <Card 
+            <Card
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  flipCard();
+                }
+              }}
               className={`h-80 cursor-pointer transition-all duration-500 transform hover:scale-105 ${
                 isFlipped ? 'rotate-y-180' : ''
               } ${showConfetti ? 'animate-confetti' : ''}`}
@@ -448,15 +467,15 @@ export function Flashcards({ onPageChange, isBackendReady }: FlashcardsProps) {
                           <Label 
                             htmlFor={key} 
                             className={`flex-1 p-3 rounded-lg border cursor-pointer transition-colors ${
-                              showResult 
+                              showResult
                                 ? key === currentQuestion.correct
-                                  ? 'bg-green-50 border-green-200 text-green-800'
+                                  ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-700 text-green-800 dark:text-green-300'
                                   : selectedAnswer === key
-                                  ? 'bg-red-50 border-red-200 text-red-800'
-                                  : 'bg-gray-50 border-gray-200'
+                                  ? 'bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-700 text-red-800 dark:text-red-300'
+                                  : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700'
                                 : selectedAnswer === key
                                 ? 'bg-[--neon-blue]/10 border-[--neon-blue]/30'
-                                : 'hover:bg-gray-50'
+                                : 'hover:bg-gray-50 dark:hover:bg-gray-900'
                             }`}
                           >
                             <span className="font-medium mr-2">{key}.</span>
@@ -468,7 +487,7 @@ export function Flashcards({ onPageChange, isBackendReady }: FlashcardsProps) {
                   </div>
 
                   {showResult && (
-                    <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
+                    <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
                       <div className="flex items-center gap-2">
                         {selectedAnswer === currentQuestion.correct ? (
                           <CheckCircle className="h-5 w-5 text-green-500" />

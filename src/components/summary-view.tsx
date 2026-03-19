@@ -4,11 +4,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Badge } from './ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
 import { ScrollArea } from './ui/scroll-area';
-import { Separator } from './ui/separator';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import { Download, Gamepad2, FileText, Brain, Lightbulb, Users, Calendar, Tag, Edit, Save, X, Trash2, AlertTriangle } from 'lucide-react';
-import { getSummary, updateSummary, deleteSummary, getUserSummaries } from '../utils/api';
+import { updateSummary, deleteSummary, getUserSummaries } from '../utils/api';
 import type { Summary } from '../utils/api';
 
 interface SummaryViewProps {
@@ -27,6 +36,7 @@ export function SummaryView({ onPageChange, isBackendReady }: SummaryViewProps) 
     studyTips: [] as Array<{ term: string; description: string }>
   });
   const [error, setError] = useState<string | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   // Load a sample summary for demo purposes
   useEffect(() => {
@@ -74,7 +84,9 @@ export function SummaryView({ onPageChange, isBackendReady }: SummaryViewProps) 
         if (response && response.summaries && response.summaries.length > 0) {
           // summaries are stored as { key, value } where value is the summary object
           const latest = response.summaries[response.summaries.length - 1];
-          setSelectedNote(latest.value);
+          if (latest) {
+            setSelectedNote(latest.value);
+          }
         }
       } catch (err) {
         console.warn('No user summaries found or failed to load:', err);
@@ -126,19 +138,18 @@ export function SummaryView({ onPageChange, isBackendReady }: SummaryViewProps) 
   const handleDelete = async () => {
     if (!selectedNote) return;
 
-    if (confirm('Are you sure you want to delete this summary?')) {
-      try {
-        setLoading(true);
-        if (isBackendReady) {
-          await deleteSummary(selectedNote.id);
-        }
-        setSelectedNote(null);
-        onPageChange('dashboard');
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to delete summary');
-      } finally {
-        setLoading(false);
+    try {
+      setLoading(true);
+      if (isBackendReady) {
+        await deleteSummary(selectedNote.id);
       }
+      setSelectedNote(null);
+      setShowDeleteDialog(false);
+      onPageChange('dashboard');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete summary');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -151,6 +162,7 @@ export function SummaryView({ onPageChange, isBackendReady }: SummaryViewProps) 
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
+    URL.revokeObjectURL(element.href);
   };
 
   const updateEditItem = (section: keyof typeof editData, index: number, field: 'term' | 'description', value: string) => {
@@ -236,9 +248,30 @@ Key Performance Indicators (KPIs) for strategic success include market share gro
   const tags = ["Management", "Strategy", "Porter", "SWOT", "Competitive Advantage"];
 
   return (
-    <div className="flex-1 flex animate-fade-in">
+    <div className="flex-1 flex flex-col md:flex-row animate-fade-in">
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Summary</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this summary? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Original Notes Panel */}
-      <div className="w-1/2 p-8 border-r border-border">
+      <div className="w-full md:w-1/2 p-8 border-b md:border-b-0 md:border-r border-border">
         <div className="space-y-6">
           <div className="space-y-2">
             <h1 className="text-2xl font-bold">Original Notes</h1>
@@ -251,7 +284,7 @@ Key Performance Indicators (KPIs) for strategic success include market share gro
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-[--neon-blue]" />
+                <FileText className="h-5 w-5 text-[hsl(var(--neon-blue-text))]" />
                 {selectedNote.subject} Notes
               </CardTitle>
               <div className="flex flex-wrap gap-2">
@@ -279,7 +312,7 @@ Key Performance Indicators (KPIs) for strategic success include market share gro
       </div>
 
       {/* AI Summary Panel */}
-      <div className="w-1/2 p-8">
+      <div className="w-full md:w-1/2 p-8">
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div className="space-y-2">
@@ -324,7 +357,7 @@ Key Performance Indicators (KPIs) for strategic success include market share gro
                   </Button>
                   <Button
                     variant="destructive"
-                    onClick={handleDelete}
+                    onClick={() => setShowDeleteDialog(true)}
                     className="bg-red-500 hover:bg-red-600"
                   >
                     <Trash2 className="h-4 w-4 mr-2" />
@@ -364,7 +397,7 @@ Key Performance Indicators (KPIs) for strategic success include market share gro
             {/* Key Names */}
             <Card className="border-[--neon-blue]/20">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-[--neon-blue]">
+                <CardTitle className="flex items-center gap-2 text-[hsl(var(--neon-blue-text))]">
                   <Users className="h-5 w-5" />
                   Key Names & Concepts
                 </CardTitle>
@@ -488,7 +521,7 @@ Key Performance Indicators (KPIs) for strategic success include market share gro
             {/* Important Points */}
             <Card className="border-[--neon-green]/20">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-[--neon-green]">
+                <CardTitle className="flex items-center gap-2 text-[hsl(var(--neon-green-text))]">
                   <Lightbulb className="h-5 w-5" />
                   Important Points
                 </CardTitle>

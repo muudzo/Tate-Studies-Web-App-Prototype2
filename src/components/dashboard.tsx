@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
-import { Upload, FileText, Image, Brain, Zap, TrendingUp, Calendar, Clock } from 'lucide-react';
+import { Upload, FileText, Image, Brain, Zap, TrendingUp, Clock } from 'lucide-react';
 import { getUserSummaries } from '../utils/api';
 import type { UserProgress } from '../utils/api';
 
@@ -14,8 +14,8 @@ interface DashboardProps {
   isBackendReady: boolean;
 }
 
-export function Dashboard({ onPageChange, userProgress, updateUserProgress, isBackendReady }: DashboardProps) {
-  const [recentSummaries, setRecentSummaries] = useState([]);
+export function Dashboard({ onPageChange, userProgress, isBackendReady }: DashboardProps) {
+  const [recentSummaries, setRecentSummaries] = useState<Array<{key: string; value: any} | null>>([]);
   const [loading, setLoading] = useState(false);
 
   // Load user summaries
@@ -90,10 +90,38 @@ export function Dashboard({ onPageChange, userProgress, updateUserProgress, isBa
     : mockRecentUploads;
 
   const stats = [
-    { label: "Study Streak", value: userProgress.streak, unit: "days", icon: TrendingUp, color: "text-[--neon-green]" },
-    { label: "Total Notes", value: displayData.length, unit: "files", icon: FileText, color: "text-[--neon-blue]" },
+    { label: "Study Streak", value: userProgress.streak, unit: "days", icon: TrendingUp, color: "text-[hsl(var(--neon-green-text))]" },
+    { label: "Total Notes", value: displayData.length, unit: "files", icon: FileText, color: "text-[hsl(var(--neon-blue-text))]" },
     { label: "XP Points", value: userProgress.xp, unit: "pts", icon: Zap, color: "text-[--neon-purple]" }
   ];
+
+  if (loading) {
+    return (
+      <div className="flex-1 p-8 space-y-8 animate-fade-in">
+        <div className="space-y-2">
+          <div className="h-10 w-96 bg-muted rounded-lg animate-pulse" />
+          <div className="h-6 w-48 bg-muted rounded-lg animate-pulse" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="border-border/50">
+              <CardHeader className="space-y-2 pb-2">
+                <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 w-16 bg-muted rounded animate-pulse" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <Card className="border-border/50">
+          <CardContent className="p-8">
+            <div className="h-32 bg-muted rounded-lg animate-pulse" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 p-8 space-y-8 animate-fade-in">
@@ -183,7 +211,7 @@ export function Dashboard({ onPageChange, userProgress, updateUserProgress, isBa
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex flex-wrap gap-1">
-                      {upload.tags.slice(0, 2).map((tag, index) => (
+                      {upload.tags.slice(0, 2).map((tag: string, index: number) => (
                         <Badge key={index} variant="secondary" className="text-xs">
                           {tag}
                         </Badge>
@@ -195,7 +223,7 @@ export function Dashboard({ onPageChange, userProgress, updateUserProgress, isBa
                       )}
                     </div>
                     {upload.processed && (
-                      <div className="flex items-center gap-1 text-[--neon-green]">
+                      <div className="flex items-center gap-1 text-[hsl(var(--neon-green-text))]">
                         <Brain className="h-4 w-4" />
                         <span className="text-xs">Processed</span>
                       </div>

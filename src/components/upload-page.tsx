@@ -51,8 +51,21 @@ export function UploadPage({ onPageChange, userProgress, updateUserProgress, isB
     }
   };
 
+  const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
   const handleFiles = (newFiles: File[]) => {
-    const processedFiles = newFiles.map((file, index) => ({
+    const validFiles: File[] = [];
+    for (const file of newFiles) {
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`File too large: ${file.name}`, {
+          description: `Maximum file size is 50MB. This file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`,
+        });
+      } else {
+        validFiles.push(file);
+      }
+    }
+
+    const processedFiles = validFiles.map((file, index) => ({
       id: Date.now() + index,
       name: file.name,
       size: file.size,
@@ -129,49 +142,58 @@ export function UploadPage({ onPageChange, userProgress, updateUserProgress, isB
         return;
       }
 
-      // Real backend processing
+      // Real backend processing with concurrency limit of 3
       const totalFiles = files.length;
       let completedFiles = 0;
+      const BATCH_SIZE = 3;
 
-      for (const fileItem of files) {
-        try {
-          setProcessingStage(`Uploading ${fileItem.name}...`);
+      const processOneFile = async (fileItem: any) => {
+        setProcessingStage(`Uploading ${fileItem.name}...`);
 
-          // Upload file
-          const uploadResult = await uploadFile(fileItem.file, userProgress.userId);
-          setUploadProgress((completedFiles / totalFiles) * 30); // Upload progress: 0-30%
+        // Upload file
+        const uploadResult = await uploadFile(fileItem.file, userProgress.userId);
 
-          // Extract text content
-          setProcessingStage(`Extracting content from ${fileItem.name}...`);
-          const textContent = await extractTextFromFile(fileItem.file);
-          setUploadProgress((completedFiles / totalFiles) * 60); // Text extraction: 30-60%
+        // Extract text content
+        setProcessingStage(`Extracting content from ${fileItem.name}...`);
+        const textContent = await extractTextFromFile(fileItem.file);
 
-          // Process with AI
-          setProcessingStage(`AI processing ${fileItem.name}...`);
-          const processResult = await processContent(textContent, selectedSubject, uploadResult.fileId);
-          setUploadProgress((completedFiles / totalFiles) * 90); // AI processing: 60-90%
+        // Process with AI
+        setProcessingStage(`AI processing ${fileItem.name}...`);
+        const processResult = await processContent(textContent, selectedSubject, uploadResult.fileId);
 
-          if (processResult.isFallback) {
-            toast.warning('Using Local Fallback', {
-              description: 'AI service unavailable. Generated a local summary instead.',
-              duration: 5000,
-            });
-          }
-
-          // Mark file as complete
-          setFiles(prev => prev.map(f =>
-            f.id === fileItem.id ? { ...f, status: 'complete', summaryId: processResult.summaryId } : f
-          ));
-
-          completedFiles++;
-          setUploadProgress((completedFiles / totalFiles) * 100);
-
-        } catch (fileError) {
-          console.error(`Error processing ${fileItem.name}:`, fileError);
-          setFiles(prev => prev.map(f =>
-            f.id === fileItem.id ? { ...f, status: 'error', error: fileError.message } : f
-          ));
+        if (processResult.isFallback) {
+          toast.warning('Using Local Fallback', {
+            description: 'AI service unavailable. Generated a local summary instead.',
+            duration: 5000,
+          });
         }
+
+        // Mark file as complete
+        setFiles(prev => prev.map(f =>
+          f.id === fileItem.id ? { ...f, status: 'complete', summaryId: processResult.summaryId } : f
+        ));
+
+        completedFiles++;
+        setUploadProgress((completedFiles / totalFiles) * 100);
+      };
+
+      // Process files in batches of BATCH_SIZE
+      for (let i = 0; i < files.length; i += BATCH_SIZE) {
+        const batch = files.slice(i, i + BATCH_SIZE);
+        const results = await Promise.allSettled(
+          batch.map(fileItem => processOneFile(fileItem))
+        );
+
+        // Mark failed files
+        results.forEach((result, idx) => {
+          if (result.status === 'rejected') {
+            const fileItem = batch[idx];
+            console.error(`Error processing ${fileItem.name}:`, result.reason);
+            setFiles(prev => prev.map(f =>
+              f.id === fileItem.id ? { ...f, status: 'error', error: result.reason?.message || 'Processing failed' } : f
+            ));
+          }
+        });
       }
 
       // Award XP for successful upload
@@ -259,6 +281,8 @@ export function UploadPage({ onPageChange, userProgress, updateUserProgress, isB
 
       {/* Upload Area */}
       <Card
+        role="button"
+        aria-label="Drop files here or click to upload"
         className={`border-2 border-dashed transition-all duration-300 ${dragActive
             ? 'border-[--neon-blue] bg-[--neon-blue]/5'
             : 'border-border hover:border-[--neon-blue]/50'
